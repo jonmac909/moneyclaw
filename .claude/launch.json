@@ -1,18 +1,17 @@
 {
-  "servers": [
+  "version": "0.0.1",
+  "configurations": [
     {
-      "name": "MoneyClaw Frontend (Vite)",
-      "command": "npm run dev",
-      "cwd": "/Users/jacquelineyeung/MoneyClaw",
-      "port": 5173,
-      "url": "http://localhost:5173"
+      "name": "moneyclaw-frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5173
     },
     {
-      "name": "Plaid/Market API Server",
-      "command": "node server.js",
-      "cwd": "/Users/jacquelineyeung/MoneyClaw/plaid-server",
-      "port": 8484,
-      "url": "http://localhost:8484"
+      "name": "moneyclaw-api",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["plaid-server/server.js"],
+      "port": 8484
     }
   ]
 }

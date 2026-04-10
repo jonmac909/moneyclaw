@@ -14,6 +14,8 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const fs = require("fs");
+const path = require("path");
 const { Configuration, PlaidApi, PlaidEnvironments, Products, CountryCode } = require("plaid");
 
 const app = express();
@@ -465,9 +467,59 @@ app.get("/api/plaid/health", (req, res) => {
   });
 });
 
+/* ── Forex Factory economic calendar (red + orange impact events) ── */
+let calendarCache = { data: null, fetchedAt: 0 };
+const CALENDAR_CACHE_MS = 10 * 60 * 1000; // 10 min — refresh often for actuals
+const CALENDAR_FILE = path.join(__dirname, "..", "ff-calendar-cache.json");
+
+async function fetchCalendar() {
+  // Return cache if fresh
+  if (calendarCache.data && Date.now() - calendarCache.fetchedAt < CALENDAR_CACHE_MS) {
+    return calendarCache.data;
+  }
+  try {
+    const resp = await fetch("https://nfs.faireconomy.media/ff_calendar_thisweek.json");
+    const text = await resp.text();
+    if (!text.startsWith("[")) throw new Error("Non-JSON response (rate limited)");
+    const events = JSON.parse(text);
+    const filtered = events.filter(e =>
+      e.impact === "High" || e.impact === "Medium"
+    ).map(e => ({
+      title: e.title,
+      country: e.country,
+      date: e.date,
+      time: e.time,
+      impact: e.impact,
+      forecast: e.forecast,
+      previous: e.previous,
+      actual: e.actual,
+    }));
+    calendarCache = { data: filtered, fetchedAt: Date.now() };
+    // Persist to disk for next server restart
+    try { fs.writeFileSync(CALENDAR_FILE, JSON.stringify({ events: filtered, fetchedAt: Date.now() })); } catch {}
+    return filtered;
+  } catch (err) {
+    console.error("Calendar fetch error:", err.message);
+    // Try disk cache
+    if (!calendarCache.data) {
+      try {
+        if (fs.existsSync(CALENDAR_FILE)) {
+          const raw = JSON.parse(fs.readFileSync(CALENDAR_FILE, "utf-8"));
+          calendarCache = { data: raw.events, fetchedAt: raw.fetchedAt || 0 };
+          return raw.events;
+        }
+      } catch {}
+    }
+    return calendarCache.data || [];
+  }
+}
+
+app.get("/api/calendar", async (req, res) => {
+  const events = await fetchCalendar();
+  res.json({ events });
+});
+
 /* ── File-based persistence for MoneyClaw data ── */
-const fs = require("fs");
-const path = require("path");
 const DATA_FILE = path.join(__dirname, "..", "moneyclaw-data.json");
 
 app.post("/api/save", (req, res) => {
