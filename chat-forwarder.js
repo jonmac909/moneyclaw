@@ -69,11 +69,19 @@ function poll() {
         if (m.id === lastId) found = true;
         continue;
       }
-      if (m.sender === "user" && ws && ws.readyState === 1 /* OPEN */) {
-        ws.send(JSON.stringify({ id: m.id, text: m.text }));
-        log("forwarded to fakechat", m.id);
+      if (m.sender === "user") {
+        if (ws && ws.readyState === 1 /* OPEN */) {
+          ws.send(JSON.stringify({ id: m.id, text: m.text }));
+          log("forwarded to fakechat", m.id);
+          lastId = m.id;
+        } else {
+          // ws not ready — stop here and retry this message on next poll
+          break;
+        }
+      } else {
+        // agent message — already handled via ws.onmessage, just track
+        lastId = m.id;
       }
-      lastId = m.id;
     }
   } catch (e) { /* file may not exist yet */ }
 }

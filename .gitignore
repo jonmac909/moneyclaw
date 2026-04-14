@@ -4,3 +4,6 @@ dist/
 *.env
 package-lock.json
 moneyclaw-data.json
+screenlog.*
+data/chat.json
+/plaid-server/connections.json

@@ -7485,6 +7485,23 @@ function FinanceChatTab({ nwData, portData, cfData, settings, rates, theme, rule
             </div>
           </div>
         ))}
+        {serverMsgs.length > 0 && serverMsgs[serverMsgs.length - 1].sender === "user" && (
+          <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: 12, padding: "0 4px" }}>
+            <div style={{
+              padding: "12px 16px", borderRadius: 6, background: C.card,
+              border: `1px solid ${C.border}`, borderBottomLeftRadius: 4,
+              fontSize: 13, lineHeight: 1.6, color: C.muted,
+            }}>
+              <div style={{ fontSize: 11, color: C.accent, fontWeight: 600, marginBottom: 4 }}>🦀 MoneyClaw</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 4, height: 16 }}>
+                <span className="mc-typing-dot" style={{ width: 6, height: 6, borderRadius: "50%", background: C.muted, animation: "mcTypingBounce 1.2s infinite ease-in-out" }} />
+                <span className="mc-typing-dot" style={{ width: 6, height: 6, borderRadius: "50%", background: C.muted, animation: "mcTypingBounce 1.2s infinite ease-in-out 0.15s" }} />
+                <span className="mc-typing-dot" style={{ width: 6, height: 6, borderRadius: "50%", background: C.muted, animation: "mcTypingBounce 1.2s infinite ease-in-out 0.3s" }} />
+              </div>
+            </div>
+          </div>
+        )}
+        <style>{`@keyframes mcTypingBounce { 0%, 80%, 100% { transform: translateY(0); opacity: 0.4; } 40% { transform: translateY(-4px); opacity: 1; } }`}</style>
         <div ref={chatEndRef} />
       </div>
 
