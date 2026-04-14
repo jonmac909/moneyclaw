@@ -297,15 +297,22 @@ const DEFAULT_SETTINGS = {
     rsiOverbought: false,
     buyTargets: true,
     dropAlerts: [
-      { symbol: "VOO", tiers: [5, 7.5, 10, 12.5, 15, 17.5, 20] },
-      { symbol: "QQQ", tiers: [5, 7.5, 10, 12.5, 15, 17.5, 20] },
-      { symbol: "AAPL", tiers: [5, 10, 15, 20] },
-      { symbol: "MSFT", tiers: [5, 10, 15, 20] },
-      { symbol: "GOOGL", tiers: [5, 10, 15, 20] },
-      { symbol: "AMZN", tiers: [5, 10, 15, 20] },
-      { symbol: "META", tiers: [5, 10, 15, 20] },
-      { symbol: "NVDA", tiers: [5, 10, 15, 20] },
+      /* Major indexes — tight 2.5% trigger (user rule) */
+      { symbol: "VOO",     tiers: [2.5, 5, 7.5, 10, 12.5, 15] },
+      { symbol: "QQQ",     tiers: [2.5, 5, 7.5, 10, 12.5, 15] },
+      { symbol: "SPY",     tiers: [2.5, 5, 7.5, 10, 12.5, 15] },
+      { symbol: "DIA",     tiers: [2.5, 5, 7.5, 10, 12.5, 15] },  /* US30 / Dow */
+      { symbol: "^NDX",    tiers: [2.5, 5, 7.5, 10, 12.5, 15] },  /* NAS / Nasdaq 100 */
+      /* Big individual stocks — 5% trigger */
+      { symbol: "AAPL",    tiers: [5, 10, 15, 20] },
+      { symbol: "MSFT",    tiers: [5, 10, 15, 20] },
+      { symbol: "GOOGL",   tiers: [5, 10, 15, 20] },
+      { symbol: "AMZN",    tiers: [5, 10, 15, 20] },
+      { symbol: "META",    tiers: [5, 10, 15, 20] },
+      { symbol: "NVDA",    tiers: [5, 10, 15, 20] },
+      /* Crypto / other holdings — 10% trigger */
       { symbol: "BTC-USD", tiers: [10, 20, 30] },
+      { symbol: "IBIT",    tiers: [10, 20, 30] },
     ],
   },
 };
@@ -1156,8 +1163,8 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
                 }
 
                 return (
-                  <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginTop: 6 }}>
-                    <span dangerouslySetInnerHTML={{ __html: lines.join(" ").replace(/\*\*(.+?)\*\*/g, '<strong style="color:' + C.text + '">$1</strong>') }} />
+                  <div style={{ fontSize: 13, color: C.text, lineHeight: 1.6, marginTop: 6 }}>
+                    <span dangerouslySetInnerHTML={{ __html: lines.join(" ").replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') }} />
                     {dcaTodos}
                   </div>
                 );
