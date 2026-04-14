@@ -1,0 +1,51 @@
+[
+  {
+    "id": "conn_1776039580229",
+    "institution": "Interactive Brokers - CA",
+    "accessToken": "access-production-3bb34aab-0852-45dd-830b-b67ea3efc065",
+    "itemId": "BmjYogyP7LTn9L6ZrmyVU9PM16kKR9U4kKxr5",
+    "connectedAt": "2026-04-13T00:19:40.229Z"
+  },
+  {
+    "id": "conn_1776039821340",
+    "institution": "RBC Royal Bank",
+    "accessToken": "access-production-97aff38d-8d1d-4085-86a3-7adfa235652b",
+    "itemId": "j1VNpQb7amhp9ew6aE19fENMybqV78CZmqaMw",
+    "connectedAt": "2026-04-13T00:23:41.340Z"
+  },
+  {
+    "id": "conn_1776039951353",
+    "institution": "RBC Royal Bank",
+    "accessToken": "access-production-56079757-f006-4784-b689-6990572e7c67",
+    "itemId": "EVOK7JXYkNuBePAqEEy5cNB5p5KO5rI68qJgJ",
+    "connectedAt": "2026-04-13T00:25:51.353Z"
+  },
+  {
+    "id": "conn_1776040031660",
+    "institution": "RBC Royal Bank",
+    "accessToken": "access-production-6a5e83cc-61ef-46fd-9ae6-2fee90f7ccdb",
+    "itemId": "13Kkp83kx1fKYrKvnKkntK4mYg796nTbEep47",
+    "connectedAt": "2026-04-13T00:27:11.660Z"
+  },
+  {
+    "id": "conn_1776040116057",
+    "institution": "RBC Royal Bank",
+    "accessToken": "access-production-6e561c08-ff3a-434a-9602-75de56ce2c6c",
+    "itemId": "xnNjQKzXmzsPrd7bmJMBT6o9qxnRPEFRjpL4v",
+    "connectedAt": "2026-04-13T00:28:36.057Z"
+  },
+  {
+    "id": "conn_1776040222394",
+    "institution": "TD Canada Trust",
+    "accessToken": "access-production-41daf41f-f388-49cf-9f63-253950590430",
+    "itemId": "eJg4K8QwwnUjRwNPOwMLcYreoodn5gTx7A7Re",
+    "connectedAt": "2026-04-13T00:30:22.394Z"
+  },
+  {
+    "id": "conn_1776040358363",
+    "institution": "TD Canada Trust",
+    "accessToken": "access-production-f3528628-c947-4eae-804c-3f11641d9a2b",
+    "itemId": "DAY88oaB9es11kvY0a9PUNOedYLOM5IYO4487",
+    "connectedAt": "2026-04-13T00:32:38.363Z"
+  }
+]
