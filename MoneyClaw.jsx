@@ -656,35 +656,63 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
       const todayUp = q.changePct > 0;
       const bouncing = todayUp && rsiRising && q.pctDown > 3;
 
-      /* Build smart signal based on multiple indicators */
+      /* Build composite opportunity score (higher = better buy opportunity) */
       const tags = [`-${q.pctDown?.toFixed(1)}%`];
       if (rsi) tags.push(`RSI ${Math.round(rsi)}`);
 
-      if (bouncing) {
-        actions.push({ sym, type: "buy", msg: `${name} bouncing — up ${q.changePct.toFixed(1)}% today, RSI ${Math.round(rsi)} rising. ${q.pctDown > 10 ? "Deep discount." : "Recovering."}`, score: 9,
-          signalTags: [...tags, "Bounce"] });
+      let score = 0;
+      /* Discount from ATH (0-30 pts) — deeper discount = better opportunity */
+      score += Math.min(30, q.pctDown * 1.5);
+      /* RSI bonus (0-20 pts) — lower RSI = more oversold = better entry */
+      if (rsi) score += Math.max(0, (70 - rsi) * 0.4);
+      /* Momentum bonus (0-15 pts) — RSI rising = recovery underway */
+      if (rsiRising) score += 10;
+      if (bouncing) score += 5;
+      /* Today's move (0-5 pts) — green day during dip = strength */
+      if (todayUp && q.pctDown > 3) score += Math.min(5, q.changePct * 2);
+      /* Below cost basis bonus (0-10 pts) — avg down opportunity */
+      if (belowAvg) score += 10;
+      /* Below 200 EMA penalty if RSI still falling (-5 pts) */
+      if (below200 && rsiFalling) score -= 5;
+      /* Overbought penalty */
+      if (overbought) score -= 15;
+
+      let type, msg;
+      const pctStr = q.pctDown.toFixed(1);
+      const rsiStr = rsi ? `RSI ${Math.round(rsi)}${rsiRising ? " ↑" : rsiFalling ? " ↓" : ""}` : "";
+      const todayStr = todayUp ? `+${q.changePct.toFixed(1)}% today` : q.changePct ? `${q.changePct.toFixed(1)}% today` : "";
+
+      if (oversold && rsiFalling) {
+        type = "danger"; msg = `${name} — ${rsiStr}, still falling. ${pctStr}% off ATH. Wait for reversal.`;
+        tags.push("Falling");
       } else if (oversold && rsiRising) {
-        actions.push({ sym, type: "buy", msg: `${name} RSI ${Math.round(rsi)} turning up from oversold — early reversal signal.`, score: 9,
-          signalTags: [...tags, "RSI Reversal"] });
-      } else if (oversold && rsiFalling) {
-        actions.push({ sym, type: "danger", msg: `${name} RSI ${Math.round(rsi)} still falling — wait for reversal before adding.`, score: 8,
-          signalTags: [...tags, "Falling"] });
-      } else if (below200 && ema50Below200) {
-        actions.push({ sym, type: "danger", msg: `${name} below 200 EMA (50 EMA crossed under). Weakened trend — ${rsiRising ? "but momentum recovering." : "wait for stabilization."}`, score: 7,
-          signalTags: [...tags, "↓200 EMA"] });
-      } else if (below200) {
-        actions.push({ sym, type: "danger", msg: `${name} below 200 EMA. ${rsiRising ? "RSI recovering — watch for breakout." : "Wait for support."}`, score: 6,
-          signalTags: [...tags, "↓200"] });
+        type = "buy"; msg = `${name} — ${rsiStr} reversing from oversold! ${pctStr}% off ATH. ${todayStr}. Strong entry signal.`;
+        tags.push("RSI Reversal");
+      } else if (bouncing && q.pctDown >= 10) {
+        type = "buy"; msg = `${name} bouncing from deep discount — ${pctStr}% off ATH, ${todayStr}, ${rsiStr}. High conviction.`;
+        tags.push("Bounce");
+      } else if (bouncing) {
+        type = "buy"; msg = `${name} bouncing — ${todayStr}, ${rsiStr}. ${pctStr}% from ATH.`;
+        tags.push("Bounce");
       } else if (belowAvg) {
         const discount = ((h.avgCost - q.price) / h.avgCost * 100).toFixed(1);
-        actions.push({ sym, type: "avgdown", msg: `Avg down on ${name} — ${discount}% below your cost of $${h.avgCost.toFixed(2)}.${rsiRising ? " Momentum improving." : ""}`, score: 7,
-          signalTags: [...tags] });
+        type = "avgdown"; msg = `${name} — ${discount}% below your cost. ${rsiStr}. ${todayStr}. Avg down opportunity.`;
+      } else if (q.pctDown >= 15) {
+        type = "buy"; msg = `${name} — deep ${pctStr}% discount from ATH. ${rsiStr}. ${todayStr}.`;
       } else if (q.pctDown >= 5) {
-        actions.push({ sym, type: "buy", msg: `${name} dip — ${q.pctDown.toFixed(1)}% from ATH.${rsiRising ? " RSI rising, good entry." : todayUp ? " Green today." : ""}`, score: 5 + (q.pctDown > 10 ? 2 : 0),
-          signalTags: [...tags] });
+        type = "buy"; msg = `${name} — ${pctStr}% off ATH. ${rsiStr}. ${todayStr}.`;
+      } else if (below200) {
+        type = "danger"; msg = `${name} below 200 EMA. ${rsiStr}. ${rsiRising ? "Momentum recovering." : "Watch for support."}`;
+        tags.push("↓200");
       } else if (overbought) {
-        actions.push({ sym, type: "info", msg: `${name} RSI ${Math.round(rsi)} — stretched. Consider trimming or waiting for pullback.`, score: 4,
-          signalTags: [...tags, "Overbought"] });
+        type = "info"; msg = `${name} — ${rsiStr} overbought. Near ATH. Wait for pullback.`;
+        tags.push("Overbought");
+      } else {
+        type = "info"; msg = `${name} — ${pctStr}% from ATH. ${rsiStr}. ${todayStr}.`;
+      }
+
+      if (type) {
+        actions.push({ sym, type, msg, score: Math.round(score), signalTags: tags });
       }
     });
     const best = {};
