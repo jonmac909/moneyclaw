@@ -3038,9 +3038,18 @@ function PortfolioTab({ data, setData, nwData, setNwData, bankAccounts, plaidSki
         setNwData(prev => {
           const snaps = prev?.snapshots || [];
           const idx = snaps.findIndex(s => s.month === monthKey);
-          const plaidSnap = { month: monthKey, items: nwItems, source: "plaid", syncedAt: new Date().toISOString() };
-          const nextSnaps = idx >= 0 ? [plaidSnap, ...snaps.slice(0, idx), ...snaps.slice(idx + 1)] : [plaidSnap, ...snaps];
-          // Sort latest first by month
+          // Preserve non-Plaid items from the existing current-month snapshot:
+          // real estate, precious metals, crypto, cars, and any manual rows that
+          // Plaid doesn't cover. Drop prior plaid_* items (they'll be replaced).
+          const existingItems = idx >= 0 ? (snaps[idx].items || []) : [];
+          const manualItems = existingItems.filter(it => !String(it.id || "").startsWith("plaid_") && !it.plaidAccountId);
+          const mergedSnap = {
+            month: monthKey,
+            items: [...manualItems, ...nwItems],
+            source: "plaid+manual",
+            syncedAt: new Date().toISOString(),
+          };
+          const nextSnaps = idx >= 0 ? [mergedSnap, ...snaps.slice(0, idx), ...snaps.slice(idx + 1)] : [mergedSnap, ...snaps];
           nextSnaps.sort((a, b) => (b.month || "").localeCompare(a.month || ""));
           return { ...prev, snapshots: nextSnaps, plaidSyncedAt: new Date().toISOString() };
         });
@@ -3106,9 +3115,14 @@ function PortfolioTab({ data, setData, nwData, setNwData, bankAccounts, plaidSki
       const gain = currentValue - totalCost;
       const gainPct = totalCost > 0 ? gain / totalCost : 0;
       const valueCAD = toBase(currentValue, h.currency, rates);
-      return { ...h, type, totalQty, totalCost, currentPrice, currentValue, gain, gainPct, valueCAD };
+      // Resolve display name from user's bank-account nickname when available
+      const acctId = h.plaidAccountId || (h.plaidKey ? h.plaidKey.split(":")[0] : null);
+      const nick = acctId && bankAccounts?.[acctId]?.nickname;
+      const name = nick || h.name;
+      const account = nick || h.account;
+      return { ...h, name, account, type, totalQty, totalCost, currentPrice, currentValue, gain, gainPct, valueCAD };
     });
-  }, [holdings, rates]);
+  }, [holdings, rates, bankAccounts]);
 
   const filtered = enriched.filter(h => (filterBucket === "All" || h.bucket === filterBucket) && (filterTag === "All" || (h.tags || []).includes(filterTag)));
   const sorted = sortFn(filtered.map(h => ({ ...h, value: h.valueCAD })));
@@ -3117,9 +3131,8 @@ function PortfolioTab({ data, setData, nwData, setNwData, bankAccounts, plaidSki
   const totalGain = totalValueCAD - totalCostCAD;
 
   /* allocation by type — derive from NW snapshot (excludes liabilities & real estate for investable allocation).
-     Skipped when useLivePlaid is on so allocation uses only live Plaid-synced holdings. */
+     Items also covered by Plaid-synced portData are filtered out below to avoid double-counting. */
   const nwAllocItems = useMemo(() => {
-    if (data.useLivePlaid) return null;
     const snap = nwData?.snapshots?.[0];
     if (!snap || !snap.items?.length) return null;
     const result = [];
@@ -3151,6 +3164,7 @@ function PortfolioTab({ data, setData, nwData, setNwData, bankAccounts, plaidSki
     if (nwAllocItems) {
       nwAllocItems.forEach(it => {
         if (isIBItem(it.name)) return; /* skip IB aggregate — portData has the breakdown */
+        if (String(it.id || "").startsWith("plaid_") || it.plaidAccountId) return; /* already counted in Plaid-synced portData */
         const valCAD = Number(it.value || 0);
         /* Split 60/40 funds: 60% counts as ETF, 40% as Bond */
         if (/60.40/i.test(it.name)) {
@@ -3228,6 +3242,7 @@ function PortfolioTab({ data, setData, nwData, setNwData, bankAccounts, plaidSki
     if (nwAllocItems) {
       nwAllocItems.forEach(it => {
         if (isIBItem(it.name)) return;
+        if (String(it.id || "").startsWith("plaid_") || it.plaidAccountId) return;
         const v = Number(it.value || 0);
         /* Split 60/40 funds: 60% counts as ETF, 40% as Bond */
         if (/60.40/i.test(it.name)) {
