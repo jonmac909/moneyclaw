@@ -7481,7 +7481,7 @@ export default function MoneyClaw() {
   }, [saved, demo]);
   const [nwData, setNwData, nwUndo, nwRedo, canNwUndo, canNwRedo] = useUndoRedo(saved?.nw || demo.nw);
   const [portData, setPortData, portUndo, portRedo, canPortUndo, canPortRedo] = useUndoRedo(mergedPortfolio);
-  const [cfData, setCfData, cfUndo, cfRedo, canCfUndo, canCfRedo] = useUndoRedo(saved?.cashflow || demo.cashflow);
+  const [cfData, setCfData, cfUndo, cfRedo, canCfUndo, canCfRedo] = useUndoRedo(saved?.cashflow || { transactions: [], budgets: [], recurring: [], catRules: {}, bankAccounts: {}, subscriptions: [] });
   const [settings, setSettings] = useState(saved?.settings || DEFAULT_SETTINGS);
   const [rates, setRates] = useState(saved?.rates || { USDCAD: 1.37, GBPCAD: 1.72 });
   const DEFAULT_WATCHLIST = { tickers: [
@@ -7524,6 +7524,7 @@ export default function MoneyClaw() {
   /* Auto-save to window.name + localStorage + server file every 1.5 seconds */
   const lastServerSave = useRef(0);
   const saveData = useCallback(() => {
+    if (!serverLoaded) return; // Don't save until server data is loaded
     try {
       const obj = { _mc: true, nw: nwData, portfolio: portData, cashflow: cfData, settings, rates, watchlist: watchlistData, todos, rules };
       const data = JSON.stringify(obj);
@@ -7539,7 +7540,7 @@ export default function MoneyClaw() {
       }
       setLastAutoSave(new Date().toLocaleTimeString());
     } catch {}
-  }, [nwData, portData, cfData, settings, rates, watchlistData, todos, rules]);
+  }, [serverLoaded, nwData, portData, cfData, settings, rates, watchlistData, todos, rules]);
 
   useEffect(() => {
     const timer = setTimeout(saveData, 1500);
