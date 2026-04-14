@@ -138,6 +138,55 @@ const BUCKET_COLORS = { Opco: "#e05a47", Holdco: "#CC6D3D", Jon: "#A3B4C8", Jacq
 const displayBucket = (b) => (b === "Jon" || b === "Jacqueline") ? "Personal" : b;
 const displayBucketColor = (b) => BUCKET_COLORS[displayBucket(b)] || BUCKET_COLORS.Jon;
 
+/* Resolve which bankAccount a transaction came from, even for orphan txns
+   (no plaidAccountId). Used by the amount-column currency badge and the
+   expanded-row source label so both read from a single source of truth. */
+const inferTxAccount = (t, bankAccounts, allTxns) => {
+  if (!t || !bankAccounts) return null;
+  // 1) Direct plaidAccountId link
+  if (t.plaidAccountId && bankAccounts[t.plaidAccountId]) return bankAccounts[t.plaidAccountId];
+  const desc = (t.description || "").toLowerCase();
+  const bucket = t.bucket;
+  const entries = Object.entries(bankAccounts);
+  // 2) Description mentions an account mask like "-6864" or " 2310"
+  const maskMatch = (t.description || "").match(/\b(\d{4})\b/);
+  if (maskMatch) {
+    const mask = maskMatch[1];
+    const byMaskBucket = entries.find(([, a]) => String(a.mask) === mask && a.bucket === bucket);
+    if (byMaskBucket) return byMaskBucket[1];
+    const byMaskAny = entries.find(([, a]) => String(a.mask) === mask);
+    if (byMaskAny) return byMaskAny[1];
+  }
+  // 3) Description mentions an institution keyword that matches an account nickname
+  // Only unambiguous keyword→account maps. Don't guess currency.
+  const KEYS = [
+    ["1119432", /^hold co ib/i],
+    ["ecomm house inc", /^ecomm house cad$/i],
+  ];
+  for (const [kw, nickRe] of KEYS) {
+    if (desc.includes(kw)) {
+      const hit = entries.find(([, a]) => nickRe.test(a.nickname || ""));
+      if (hit) return hit[1];
+    }
+  }
+  // 4) Paired transfer: same date, same bucket, opposite sign, same amount.
+  // Recursively resolve the pair's account (handles the case where the pair
+  // is also an orphan whose account is identified by keyword).
+  if (allTxns && (desc.includes("transfer") || desc.includes("credit memo") || desc.includes("scheduled payment"))) {
+    const pair = allTxns.find(x => x !== t && x.date === t.date && x.bucket === t.bucket
+      && Math.abs(x.amount) === Math.abs(t.amount) && x.type !== t.type);
+    if (pair) {
+      // direct link first
+      const direct = pair.plaidAccountId ? bankAccounts[pair.plaidAccountId] : null;
+      if (direct) return { ...direct, _inferredVia: "pair" };
+      // resolve pair via description (stay non-recursive by not passing allTxns)
+      const resolved = inferTxAccount(pair, bankAccounts, null);
+      if (resolved) return { ...resolved, _inferredVia: "pair" };
+    }
+  }
+  return null;
+};
+
 /* Expense categories — grouped by parent for hierarchy display */
 const EXPENSE_CATS = {
   Opco: {
@@ -815,11 +864,58 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
   const toggleTodo = (id) => setTodos(todos.map(t => t.id === id ? { ...t, done: !t.done } : t));
   const removeTodo = (id) => setTodos(todos.filter(t => t.id !== id));
 
-  /* ── VIX sentiment ── */
+  /* ── Composite market sentiment ── */
   const vix = quotes["^VIX"] || {};
   const vixLevel = vix.price || 0;
-  const vixSentiment = vixLevel >= 30 ? "Extreme Fear" : vixLevel >= 25 ? "Fear" : vixLevel >= 20 ? "Elevated" : vixLevel >= 15 ? "Neutral" : vixLevel > 0 ? "Greed" : null;
-  const vixColor = vixLevel >= 30 ? C.red : vixLevel >= 25 ? C.orange : vixLevel >= 20 ? "#f59e0b" : vixLevel >= 15 ? C.muted : C.green;
+  const vixChg = vix.changePct;
+  const _qqqQ = quotes["QQQ"] || {};
+  const _vooQ = quotes["VOO"] || {};
+  const _qqqT = technicals["QQQ"] || {};
+  const _mktChg = _qqqQ.changePct || 0;
+  const _qPct = _qqqQ.pctDown || 0;
+  const _rsi = _qqqT.rsi14;
+  const _rsiPrev = _qqqT.rsi14Prev;
+  const _cross = (_qqqT.ema50 && _qqqT.ema200) ? (_qqqT.ema50 >= _qqqT.ema200 ? "golden" : "death") : null;
+
+  let _score = 0;
+  if (vixLevel > 0) {
+    if (vixLevel < 15) _score += 2;
+    else if (vixLevel < 20) _score += 1;
+    else if (vixLevel >= 30) _score -= 2;
+    else if (vixLevel >= 25) _score -= 1;
+  }
+  if (vixChg != null) {
+    if (vixChg < -5) _score += 1;
+    else if (vixChg > 7) _score -= 1;
+  }
+  if (_qPct < 1) _score += 1;
+  else if (_qPct > 15) _score -= 1;
+  if (_mktChg > 0.5) _score += 1;
+  else if (_mktChg < -1.5) _score -= 1;
+  if (_rsi != null) {
+    if (_rsi > 70) _score -= 1;
+    else if (_rsi < 30) _score -= 1;
+    else if (_rsi >= 50 && _rsiPrev != null && _rsi > _rsiPrev) _score += 1;
+  }
+  if (_cross === "golden") _score += 1;
+  else if (_cross === "death") _score -= 2;
+
+  let vixSentiment = null, vixColor = null, vixTake = null;
+  if (vixLevel > 0) {
+    if (_score >= 4) { vixSentiment = "Risk-on"; vixColor = C.green;
+      vixTake = `Tape is decisively bullish — VIX ${vixLevel.toFixed(0)}${vixChg != null && vixChg < -3 ? ` bleeding lower (${vixChg.toFixed(1)}%)` : ""}, indexes near highs, momentum up. Stick to your deployment schedule — don't wait for a pullback that may not come.`;
+    } else if (_score >= 2) { vixSentiment = "Bullish bias"; vixColor = "#8ab864";
+      vixTake = `Constructive tape. ${vixChg != null && vixChg < -3 ? `Volatility crushing (VIX ${vixChg.toFixed(1)}%) ` : ""}${_qPct < 3 ? "buyers stepping in near highs" : `RSI ${_rsi?.toFixed(0) || "?"} healthy`}. Good window to keep deploying on schedule.`;
+    } else if (_score >= 0) { vixSentiment = "Mixed"; vixColor = "#A3B4C8";
+      vixTake = `No clear signal. ${vixLevel >= 18 ? `VIX ${vixLevel.toFixed(0)} elevated` : `VIX ${vixLevel.toFixed(0)} calm`}, ${_qPct < 3 ? "indexes near highs" : `${_qPct.toFixed(1)}% pullback`}. Stay on DCA schedule — don't front-load.`;
+    } else if (_score >= -2) { vixSentiment = "Cautious"; vixColor = "#f59e0b";
+      vixTake = `Defensive tone. Fear creeping up${vixChg != null && vixChg > 0 ? ` (VIX +${vixChg.toFixed(1)}%)` : ""}, ${_rsi != null && _rsi < 50 ? `RSI ${_rsi.toFixed(0)} rolling` : "momentum fading"}. Hold dry powder for bigger drawdowns before adding beyond your base.`;
+    } else if (_score >= -4) { vixSentiment = "Risk-off"; vixColor = C.orange;
+      vixTake = `Fear dominating. VIX ${vixLevel.toFixed(0)}, ${_qPct.toFixed(1)}% off ATH. Wait for RSI reversal or VIX ≥ 25 before stepping in harder — don't catch the knife.`;
+    } else { vixSentiment = "Panic tape"; vixColor = C.red;
+      vixTake = `Extreme fear. VIX ${vixLevel.toFixed(0)}. Historically these are the entries you'll thank yourself for in 6–12 months — but only in tranches, only if your rules allow.`;
+    }
+  }
 
   // Market status description (facts only — DCA advice is in the sentiment card below)
   const vixAdvice = (() => {
@@ -926,6 +1022,8 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
                 const cross = qqqT?.ema50 && qqqT?.ema200 ? (qqqT.ema50 < qqqT.ema200 ? "death cross" : "golden cross") : null;
 
                 const lines = [];
+                // Expert take — opinionated composite read (lead with this)
+                if (vixTake) lines.push(`**Take:** ${vixTake}`);
                 // ATH distance
                 if (qPct < 1 && vPct < 1) lines.push("QQQ and VOO are near all-time highs — no discount.");
                 else if (qPct < 5) lines.push(`QQQ is ${qPct.toFixed(1)}% below ATH, VOO ${vPct.toFixed(1)}% off — a mild pullback.`);
@@ -1059,7 +1157,7 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
 
                 return (
                   <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginTop: 6 }}>
-                    {lines.join(" ")}
+                    <span dangerouslySetInnerHTML={{ __html: lines.join(" ").replace(/\*\*(.+?)\*\*/g, '<strong style="color:' + C.text + '">$1</strong>') }} />
                     {dcaTodos}
                   </div>
                 );
@@ -4696,7 +4794,7 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
                         <input type="checkbox" checked={!!t.reviewed} onChange={() => toggleReviewed(t.id)} style={{ cursor: "pointer", accentColor: C.muted, opacity: 0.5 }} />
                       </td>
                       <td style={{ padding: "4px 4px", fontSize: 11, color: C.muted, whiteSpace: "nowrap", overflow: "hidden" }}>
-                        {new Date(t.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                        {new Date(t.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                       </td>
                       <td style={{ padding: "4px 4px", overflow: "hidden", cursor: "pointer" }}
                         onClick={() => setExpandedTxId(expandedTxId === t.id ? null : t.id)}>
@@ -4709,28 +4807,16 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
                           </div>
                         )}
                         {expandedTxId === t.id && (() => {
-                          const acct = t.plaidAccountId ? bankAccounts[t.plaidAccountId] : null;
-                          /* Try to find account by matching mask in description (e.g. "Account-4829") */
-                          const inferredAcct = !acct && (() => {
-                            const maskMatch = (t.description || "").match(/(\d{4})\s*$/);
-                            if (!maskMatch) return null;
-                            const mask = maskMatch[1];
-                            const found = Object.entries(bankAccounts).find(([, a]) => a.mask === mask && a.bucket === t.bucket);
-                            return found ? found[1] : null;
-                          })();
-                          const displayAcct = acct || inferredAcct;
-                          const displayAcct2 = acct || inferredAcct;
-                          const sourceLabel = displayAcct2 ? `${displayAcct2.nickname || displayAcct2.name || ""}${displayAcct2.mask ? " *" + displayAcct2.mask : ""}`.trim() : (t.source === "csv" ? "CSV import" : "Bank import");
+                          const displayAcct = inferTxAccount(t, bankAccounts, txns);
                           return (
                             <div style={{ fontSize: 10, color: C.muted, marginTop: 4, padding: "4px 0", borderTop: `1px solid ${C.border}20`, lineHeight: 1.5 }}>
                               {displayAcct ? (<>
-                                <div><span style={{ color: C.accent, fontWeight: 600 }}>{displayAcct.nickname || displayAcct.name}</span> {displayAcct.mask ? `*${displayAcct.mask}` : ""}</div>
-                                <div>{displayAcct.institution} · {displayAcct.type}/{displayAcct.subtype}</div>
+                                <div><span style={{ color: C.accent, fontWeight: 600 }}>{displayAcct.nickname || displayAcct.name}</span> {displayAcct.mask ? `*${displayAcct.mask}` : ""}{displayAcct._inferredVia && <span style={{ marginLeft: 6, fontSize: 8, color: C.muted }}>(inferred)</span>}</div>
+                                <div>{displayAcct.institution || "—"} · {displayAcct.type || "?"}/{displayAcct.subtype || "?"} · {displayAcct.currency || "CAD"}</div>
                               </>) : (
-                                <div>Source: {sourceLabel}</div>
+                                <div>Account unknown (orphan transaction)</div>
                               )}
                               {t.plaidCategory && <div>Plaid category: {t.plaidCategory}</div>}
-                              {t.currency && t.currency !== "CAD" && <div>Currency: {t.currency}</div>}
                             </div>
                           );
                         })()}
@@ -4738,11 +4824,10 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
                       <td style={{ padding: "4px 4px", fontSize: 11, fontWeight: 600, textAlign: "right", fontFamily: "monospace", whiteSpace: "nowrap", overflow: "hidden",
                         color: isTransferTx(t) ? C.accent2 : t.type === "income" ? C.green : C.red }}>
                         {(() => {
-                          // Source of truth for currency: the linked bank account, falling back to tx.currency, then CAD.
-                          const acct = t.plaidAccountId ? bankAccounts[t.plaidAccountId] : null;
+                          const acct = inferTxAccount(t, bankAccounts, txns);
                           const cur = acct?.currency || t.currency || "CAD";
                           return <>{t.type === "income" ? "" : "-"}${fmtFull(t.amount).replace("$", "")}
-                            {cur !== "CAD" && <span style={{ fontSize: 9, fontWeight: 600, marginLeft: 4, color: C.orange }}>{cur}</span>}
+                            <span style={{ fontSize: 8, fontWeight: 500, marginLeft: 3, letterSpacing: 0.3, color: cur === "USD" ? C.orange : C.muted, opacity: 0.7 }}>{cur}</span>
                           </>;
                         })()}
                       </td>
