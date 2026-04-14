@@ -4737,10 +4737,14 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
                       </td>
                       <td style={{ padding: "4px 4px", fontSize: 11, fontWeight: 600, textAlign: "right", fontFamily: "monospace", whiteSpace: "nowrap", overflow: "hidden",
                         color: isTransferTx(t) ? C.accent2 : t.type === "income" ? C.green : C.red }}>
-                        {t.type === "income" ? "" : "-"}${fmtFull(t.amount).replace("$", "")}
-                        <span style={{ fontSize: 8, fontWeight: 600, marginLeft: 4, padding: "1px 4px", borderRadius: 3,
-                          background: t.currency === "USD" ? C.orange + "22" : C.muted + "18",
-                          color: t.currency === "USD" ? C.orange : C.muted }}>{t.currency || "CAD"}</span>
+                        {(() => {
+                          // Source of truth for currency: the linked bank account, falling back to tx.currency, then CAD.
+                          const acct = t.plaidAccountId ? bankAccounts[t.plaidAccountId] : null;
+                          const cur = acct?.currency || t.currency || "CAD";
+                          return <>{t.type === "income" ? "" : "-"}${fmtFull(t.amount).replace("$", "")}
+                            {cur !== "CAD" && <span style={{ fontSize: 9, fontWeight: 600, marginLeft: 4, color: C.orange }}>{cur}</span>}
+                          </>;
+                        })()}
                       </td>
                       <td style={{ padding: "4px 4px", fontSize: 11, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         <select style={{ ...s.select, padding: "1px 2px", fontSize: 11, background: "transparent", border: "none", color: isTransferTx(t) ? C.accent2 : C.text, maxWidth: "100%" }}
