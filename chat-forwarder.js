@@ -58,7 +58,13 @@ function poll() {
     const msgs = JSON.parse(fs.readFileSync(CHAT_FILE, "utf8"));
     if (!initialized) {
       initialized = true;
-      lastId = msgs.length ? msgs[msgs.length - 1].id : null;
+      // Treat any trailing user messages (no agent reply after) as unprocessed
+      // so they get forwarded on restart. Skip anything up through the last agent reply.
+      let lastAgentIdx = -1;
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        if (msgs[i].sender === "agent") { lastAgentIdx = i; break; }
+      }
+      lastId = lastAgentIdx >= 0 ? msgs[lastAgentIdx].id : null;
       return;
     }
     // If file was cleared, reset lastId so new messages are treated as new
