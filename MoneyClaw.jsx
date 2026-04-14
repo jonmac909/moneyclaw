@@ -3793,33 +3793,56 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
         const from = tx.type === "expense" ? tx.bucket : (transferMatch || "?");
         const to = tx.type === "income" ? tx.bucket : (transferMatch || "?");
 
+        /* Identify destination/source from description */
+        const descNames = (tx.description || "").match(/(?:sent|received|transfer(?:red)?)\s+(.+)/i);
+        const entityName = descNames ? descNames[1].trim().split(/\s+/).slice(0, 3).join(" ") : null;
+        /* Try to map entity name to a bucket */
+        const nameToB = (name) => {
+          if (!name) return null;
+          const n = name.toLowerCase();
+          if (n.includes("ecomm house") || n.includes("1119432 bc")) return "Opco";
+          if (n.includes("holdco") || n.includes("holding")) return "Holdco";
+          if (n.includes("jonathon") || n.includes("jon mac")) return "Jon";
+          if (n.includes("jacqueline") || n.includes("jacq")) return "Jacqueline";
+          return name.split(/\s+/).slice(0, 2).join(" "); /* Use the actual name */
+        };
+        const destBucket = transferMatch || nameToB(entityName);
+        /* Account digits from description */
+        const acctMatch = (tx.description || "").match(/[-–]\s*(\d{4})\s*$/);
+        const acctLabel = acctMatch ? `Acct ${acctMatch[1]}` : null;
+        /* Look up account nickname/name */
+        const txAcct = tx.plaidAccountId ? bankAccounts[tx.plaidAccountId] : null;
+        const txAcctLabel = txAcct ? (txAcct.nickname || txAcct.name || `*${txAcct.mask}`) : null;
+
         if (cat.includes("CC Payment")) {
           transferNote = `${tx.bucket} → Visa Payment`;
         } else if (cat.includes("Hold Co Dividends") || cat.includes("Dividends from Opco")) {
-          transferNote = `${tx.bucket} → Dividend`;
+          transferNote = `Opco → Holdco Dividend`;
         } else if (cat.includes("Dividends from Holdco")) {
           transferNote = `Holdco → ${tx.bucket} Dividend`;
         } else if (low.includes("foreign exchange") || low.includes("currency")) {
           const curr = tx.currency || "CAD";
           transferNote = `${tx.bucket} ${curr === "USD" ? "CAD → USD" : "USD → CAD"} FX`;
-        } else if (transferMatch) {
-          transferNote = tx.type === "expense" ? `${tx.bucket} → ${transferMatch}` : `${from} → ${tx.bucket}`;
-        } else if (low.includes("online banking transfer") || low.includes("funds transfer")) {
-          /* Try to identify account from description (last 4 digits) */
-          const acctMatch = (tx.description || "").match(/[-–]\s*(\d{4})\s*$/);
-          transferNote = tx.type === "expense"
-            ? `${tx.bucket} → Acct ${acctMatch ? acctMatch[1] : "?"}`
-            : `Acct ${acctMatch ? acctMatch[1] : "?"} → ${tx.bucket}`;
+        } else if (destBucket) {
+          transferNote = tx.type === "expense" ? `${tx.bucket} → ${destBucket}` : `${destBucket} → ${tx.bucket}`;
+        } else if (acctLabel) {
+          transferNote = tx.type === "expense" ? `${tx.bucket} → ${acctLabel}` : `${acctLabel} → ${tx.bucket}`;
         } else if (low.includes("e-transfer") || low.includes("etransfer")) {
-          const nameMatch = (tx.description || "").match(/(?:sent|received|fulfilled)\s+(.+)/i);
-          const name = nameMatch ? nameMatch[1].trim().split(/\s+/).slice(0, 2).join(" ") : null;
           transferNote = tx.type === "expense"
-            ? `${tx.bucket} → ${name || "e-Transfer"}`
-            : `${name || "e-Transfer"} → ${tx.bucket}`;
-        } else if (low.includes("scheduled payment") || low.includes("credit memo")) {
-          transferNote = tx.type === "expense" ? `${tx.bucket} → Scheduled` : `Credit → ${tx.bucket}`;
+            ? `${tx.bucket} → ${entityName || "e-Transfer"}`
+            : `${entityName || "e-Transfer"} → ${tx.bucket}`;
+        } else if (low.includes("scheduled payment")) {
+          /* Try to find matching credit memo or incoming payment */
+          const ftMatch = (tx.description || "").match(/FT\d+/);
+          const matchedTx = ftMatch ? transactions.find(o => o.id !== tx.id && o.description?.includes(ftMatch[0])) : null;
+          transferNote = matchedTx ? `${tx.bucket} → ${matchedTx.bucket}` : `${tx.bucket} → Scheduled Payment`;
+        } else if (low.includes("credit memo")) {
+          transferNote = `Credit → ${tx.bucket}`;
         } else {
-          transferNote = tx.type === "expense" ? `${tx.bucket} → Out` : `In → ${tx.bucket}`;
+          /* Last resort: use account name */
+          transferNote = tx.type === "expense"
+            ? `${tx.bucket} → ${txAcctLabel || "Transfer"}`
+            : `${txAcctLabel || "Transfer"} → ${tx.bucket}`;
         }
       }
 
@@ -4353,7 +4376,8 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
                             return found ? found[1] : null;
                           })();
                           const displayAcct = acct || inferredAcct;
-                          const sourceLabel = t.source === "plaid" || t.plaidId ? "Plaid" : t.source === "csv" ? "CSV import" : "Bank import";
+                          const displayAcct2 = acct || inferredAcct;
+                          const sourceLabel = displayAcct2 ? `${displayAcct2.nickname || displayAcct2.name || ""}${displayAcct2.mask ? " *" + displayAcct2.mask : ""}`.trim() : (t.source === "csv" ? "CSV import" : "Bank import");
                           return (
                             <div style={{ fontSize: 10, color: C.muted, marginTop: 4, padding: "4px 0", borderTop: `1px solid ${C.border}20`, lineHeight: 1.5 }}>
                               {displayAcct ? (<>
