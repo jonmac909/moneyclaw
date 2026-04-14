@@ -3311,18 +3311,21 @@ function PortfolioTab({ data, setData, nwData, setNwData, bankAccounts, plaidSki
       <CollapsibleStats label="Summary" C={C}>
         <div className="mc-stat-row" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           {(() => {
-            // Accurate investible = Total Net Worth − House value (in CAD)
+            // Investible = Total Net Worth − House equity (house value − mortgage)
             const allItems = nwData?.snapshots?.[0]?.items || [];
-            let totalNW = 0, houseValue = 0;
+            let totalNW = 0, houseValue = 0, mortgageValue = 0;
             allItems.forEach(it => {
               const v = toBase(Number(it.value || 0), it.currency || "CAD", rates);
               const isLiab = it.isLiability || inferNwItemType(it) === "Liability";
               const isHouse = inferNwItemType(it) === "Real Estate";
+              const isMortgage = /mortgage/i.test(it.name || "");
               if (isHouse) houseValue += v;
+              if (isMortgage) mortgageValue += v;
               totalNW += isLiab ? -v : v;
             });
-            const investible = totalNW - houseValue;
-            return <StatCard label="Investible Assets" value={mask(fmt(investible), hide)} sub={mask(`NW ${fmt(totalNW)} − House ${fmt(houseValue)}`, hide)} color={C.accent} C={C} />;
+            const houseEquity = houseValue - mortgageValue;
+            const investible = totalNW - houseEquity;
+            return <StatCard label="Investible Assets" value={mask(fmt(investible), hide)} sub={mask(`NW ${fmt(totalNW)} − House equity ${fmt(houseEquity)}`, hide)} color={C.accent} C={C} />;
           })()}
           <StatCard label="IB Gain/Loss" value={mask((totalGain >= 0 ? "+" : "") + fmt(totalGain), hide)} sub={mask(totalCostCAD > 0 ? (totalGain >= 0 ? "+" : "") + (totalGain / totalCostCAD * 100).toFixed(1) + "%" : "", hide)} color={totalGain >= 0 ? C.green : C.red} C={C} />
           <StatCard label="IB Holdings" value={enriched.filter(h => h.ticker !== "CASH").length} sub={mask(fmt(totalValueCAD), hide)} C={C} />
