@@ -174,7 +174,7 @@ const DEFAULT_TAX_CATS = Object.fromEntries(
 /* Transfer categories — excluded from totals */
 const TRANSFER_CATS = {
   Opco: ["Moving Money CC Payments", "Moving Money Business"],
-  Holdco: ["Hold Co Dividends", "Dividends from Opco", "Moving Money Holdco"],
+  Holdco: ["Moving Money CC Payments", "Moving Money Business", "Hold Co Dividends", "Dividends from Opco", "Moving Money Holdco"],
   Jon: ["Moving Money CC Payments", "Moving Money Personal", "Dividends from Holdco"],
   Jacqueline: ["Moving Money CC Payments", "Moving Money Personal", "Dividends from Holdco"],
 };
@@ -4326,7 +4326,7 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
                   {sorted.map((t, i) => (
                     <tr key={t.id} style={{ background: isTransferTx(t) ? C.accent2 + "08" : t.reviewed ? "transparent" : (i % 2 ? C.card2 + "22" : "transparent"), borderBottom: `1px solid ${C.border}15`, opacity: isTransferTx(t) ? 0.6 : 1 }}>
                       <td style={{ padding: "4px 2px" }}>
-                        <input type="checkbox" checked={!!t.reviewed} onChange={() => toggleReviewed(t.id)} style={{ cursor: "pointer", accentColor: C.green }} />
+                        <input type="checkbox" checked={!!t.reviewed} onChange={() => toggleReviewed(t.id)} style={{ cursor: "pointer", accentColor: C.muted, opacity: 0.5 }} />
                       </td>
                       <td style={{ padding: "4px 4px", fontSize: 11, color: C.muted, whiteSpace: "nowrap", overflow: "hidden" }}>
                         {new Date(t.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
@@ -7428,19 +7428,8 @@ export default function MoneyClaw() {
   const [chatKey, setChatKey] = useState(0);
   const C = themes[theme]; const s = S(theme);
 
-  /* ── Persistence via window.name + localStorage + server file backup ── */
-  const loadSaved = () => {
-    try {
-      if (window.name && window.name.startsWith("{\"_mc\":")) {
-        return JSON.parse(window.name);
-      }
-    } catch {}
-    try {
-      const ls = localStorage.getItem("moneyclaw");
-      if (ls) return JSON.parse(ls);
-    } catch {}
-    return null;
-  };
+  /* ── Persistence — always load from server as primary source ── */
+  const loadSaved = () => null; // Force server load — server file is source of truth
   const saved = useMemo(() => loadSaved(), []);
 
   // Load from server file on mount — prefer whichever source has more transactions
