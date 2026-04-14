@@ -3569,6 +3569,7 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
     { kw: ["alamoana", "llhawaii", "waikiki", "honolulu"], biz: "Business Travel", personal: "Hotel/Accommodation" },
     { kw: ["stripe", "square"], biz: "Other Income" },
     { kw: ["native path"], biz: "Contracts" },
+    { kw: ["funds transfer credit tt", "funds transfer db tt", "transfer credit tt"], biz: "Sponsor Income" },
     { kw: ["bank fee", "monthly fee", "service charge", "nsf"], biz: "Bank Fees", personal: "Personal Misc" },
     /* transfer/e-transfer/CC payments now handled by bookkeeper tier in smartGuess */
     { kw: ["interest charge", "interest -"], personal: "Personal Misc", biz: "Bank Fees" },
