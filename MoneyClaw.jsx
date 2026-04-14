@@ -131,7 +131,7 @@ function useUndoRedo(initial) {
 /* ═══════════════════════════════════════════════════════════
    DEFAULT DATA & CATEGORIES
    ═══════════════════════════════════════════════════════════ */
-const BUCKETS = ["Opco", "Holdco", "Jon", "Jacqueline"];
+const BUCKETS = ["Opco", "Holdco", "Personal"];
 const BUCKET_COLORS = { Opco: "#e05a47", Holdco: "#CC6D3D", Jon: "#A3B4C8", Jacqueline: "#6b9fc4" };
 
 /* Expense categories — grouped by parent for hierarchy display */
@@ -3310,7 +3310,20 @@ function PortfolioTab({ data, setData, nwData, setNwData, bankAccounts, plaidSki
       {/* ═══ ROW 1: Stats + Actions ═══ */}
       <CollapsibleStats label="Summary" C={C}>
         <div className="mc-stat-row" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <StatCard label="Investible Assets" value={mask(fmt(totalVal), hide)} sub="From net worth" color={C.accent} C={C} />
+          {(() => {
+            // Accurate investible = Total Net Worth − House value (in CAD)
+            const allItems = nwData?.snapshots?.[0]?.items || [];
+            let totalNW = 0, houseValue = 0;
+            allItems.forEach(it => {
+              const v = toBase(Number(it.value || 0), it.currency || "CAD", rates);
+              const isLiab = it.isLiability || inferNwItemType(it) === "Liability";
+              const isHouse = inferNwItemType(it) === "Real Estate";
+              if (isHouse) houseValue += v;
+              totalNW += isLiab ? -v : v;
+            });
+            const investible = totalNW - houseValue;
+            return <StatCard label="Investible Assets" value={mask(fmt(investible), hide)} sub={mask(`NW ${fmt(totalNW)} − House ${fmt(houseValue)}`, hide)} color={C.accent} C={C} />;
+          })()}
           <StatCard label="IB Gain/Loss" value={mask((totalGain >= 0 ? "+" : "") + fmt(totalGain), hide)} sub={mask(totalCostCAD > 0 ? (totalGain >= 0 ? "+" : "") + (totalGain / totalCostCAD * 100).toFixed(1) + "%" : "", hide)} color={totalGain >= 0 ? C.green : C.red} C={C} />
           <StatCard label="IB Holdings" value={enriched.filter(h => h.ticker !== "CASH").length} sub={mask(fmt(totalValueCAD), hide)} C={C} />
         </div>
