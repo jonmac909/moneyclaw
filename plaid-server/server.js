@@ -978,11 +978,50 @@ No explanation, just the JSON array.`;
   }
 });
 
+/* ─────────────────────────────────────────────
+   CHAT BRIDGE — routes MoneyClaw Coach through Claude Code CLI
+   via fakechat plugin + chat-forwarder.js.
+   ───────────────────────────────────────────── */
+const CHAT_FILE = path.join(__dirname, "..", "data", "chat.json");
+const readChat = () => {
+  try { return JSON.parse(fs.readFileSync(CHAT_FILE, "utf8")); } catch (_) { return []; }
+};
+const writeChat = (msgs) => {
+  const tmp = CHAT_FILE + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(msgs, null, 2));
+  fs.renameSync(tmp, CHAT_FILE);
+};
+
+app.get("/api/chat", (req, res) => {
+  res.json(readChat());
+});
+
+app.post("/api/chat", (req, res) => {
+  const { text, sender } = req.body || {};
+  if (!text || typeof text !== "string") return res.status(400).json({ error: "text required" });
+  const msgs = readChat();
+  const msg = {
+    id: "msg-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8),
+    text: text.trim(),
+    sender: sender || "user",
+    timestamp: Date.now(),
+  };
+  msgs.push(msg);
+  writeChat(msgs);
+  res.json(msg);
+});
+
+app.delete("/api/chat", (req, res) => {
+  writeChat([]);
+  res.json({ cleared: true });
+});
+
 app.listen(PORT, () => {
   console.log(`\n  MoneyClaw Plaid Server`);
   console.log(`  ─────────────────────`);
   console.log(`  Environment: ${process.env.PLAID_ENV || "sandbox"}`);
   console.log(`  Listening:   http://localhost:${PORT}`);
   console.log(`  Health:      http://localhost:${PORT}/api/plaid/health`);
+  console.log(`  Chat:        http://localhost:${PORT}/api/chat`);
   console.log(`  Credentials: ${process.env.PLAID_CLIENT_ID ? "configured" : "MISSING — check .env"}\n`);
 });

@@ -6920,21 +6920,47 @@ function FinanceChatTab({ nwData, portData, cfData, settings, rates, theme, rule
   /* ── Build smart greeting ── */
   const buildGreeting = () => "Hey! I'm your MoneyClaw coach. What do you need help with?";
 
-  const [messages, setMessages] = useState([]);
+  /* ── Chat state: synced with server (/api/chat) which is bridged to Claude Code CLI ── */
+  const [serverMsgs, setServerMsgs] = useState([]);
+  const [coachOnline, setCoachOnline] = useState(true);
+  const greetingMsg = { id: "greeting", role: "ai", text: buildGreeting() };
+  const messages = [greetingMsg, ...serverMsgs.map(m => ({
+    id: m.id,
+    role: m.sender === "user" ? "user" : "ai",
+    text: m.text,
+  }))];
+  const refreshChat = async () => {
+    try {
+      const r = await fetch(`${PLAID_SERVER}/api/chat`);
+      if (!r.ok) throw new Error("offline");
+      const data = await r.json();
+      setServerMsgs(Array.isArray(data) ? data : []);
+      setCoachOnline(true);
+    } catch (_) { setCoachOnline(false); }
+  };
   useEffect(() => {
-    if (Object.keys(marketQuotes).length > 0 && messages.length === 0) {
-      setMessages([{ id: uid(), role: "ai", text: buildGreeting() }]);
-    }
-  }, [marketQuotes]);
-  // Fallback greeting if quotes don't load
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (messages.length === 0) setMessages([{ id: uid(), role: "ai", text: buildGreeting() }]);
-    }, 2000);
-    return () => clearTimeout(timer);
+    refreshChat();
+    const id = setInterval(refreshChat, 2000);
+    return () => clearInterval(id);
   }, []);
+  const postMessage = async (text) => {
+    try {
+      await fetch(`${PLAID_SERVER}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, sender: "user" }),
+      });
+      refreshChat();
+    } catch (_) { setCoachOnline(false); }
+  };
+  const clearChat = async () => {
+    try {
+      await fetch(`${PLAID_SERVER}/api/chat`, { method: "DELETE" });
+      refreshChat();
+    } catch (_) {}
+  };
 
-  useEffect(() => { if (messages.length > 1) chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+  useEffect(() => { if (messages.length > 1) chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [serverMsgs]);
 
   const pending = (todos || []).filter(t => !t.done);
   const todoTopics = pending.map(t => ({ label: t.text, prompt: `I have a task: "${t.text}". Help me think through this and take action.`, isTodo: true }));
@@ -7326,19 +7352,16 @@ function FinanceChatTab({ nwData, portData, cfData, settings, rates, theme, rule
   };
 
   const sendMessage = () => {
-    if (!input.trim()) return;
-    const userMsg = { id: uid(), role: "user", text: input.trim() };
-    const response = generateResponse(input.trim());
-    const aiReply = { id: uid(), role: "ai", text: response };
-    // Check if user asked coach to add a todo
-    const q = input.trim().toLowerCase();
+    const text = input.trim();
+    if (!text) return;
+    // Todo detection stays client-side
+    const q = text.toLowerCase();
     if (q.includes("add to") && (q.includes("todo") || q.includes("to-do") || q.includes("task"))) {
-      // Extract the task from the message (after "add to todo:" or similar)
-      const match = input.trim().match(/(?:add (?:to )?(?:my )?(?:todo|to-do|task)s?[:\s]+)(.+)/i);
+      const match = text.match(/(?:add (?:to )?(?:my )?(?:todo|to-do|task)s?[:\s]+)(.+)/i);
       if (match) coachAddTodo(match[1]);
     }
-    setMessages(prev => [...prev, userMsg, aiReply]);
     setInput("");
+    postMessage(text);
   };
 
   /* Simple markdown-ish rendering — with actionable todo buttons */
@@ -7382,11 +7405,7 @@ function FinanceChatTab({ nwData, portData, cfData, settings, rates, theme, rule
       {/* Topic pills */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "8px 0", borderBottom: `1px solid ${C.border}33` }}>
         {[...TOPICS, ...customTopics].map((t, i) => (
-          <button key={i} onClick={() => {
-            const userMsg = { id: uid(), role: "user", text: t.prompt || t.label };
-            const aiReply = { id: uid(), role: "ai", text: generateResponse(t.prompt || t.label) };
-            setMessages(prev => [...prev, userMsg, aiReply]);
-          }} style={{
+          <button key={i} onClick={() => postMessage(t.prompt || t.label)} style={{
             background: t.isTodo ? C.orange + "15" : C.card2,
             color: t.isTodo ? C.orange : C.accent,
             border: `1px solid ${t.isTodo ? C.orange + "40" : C.border}`,
@@ -7873,7 +7892,7 @@ export default function MoneyClaw() {
           {!chatFullscreen && <span style={{ fontSize: 9, color: C.muted }}>Ask me anything</span>}
           {chatOpen && (
             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4 }}>
-              <button onClick={e => { e.stopPropagation(); setChatKey(k => k + 1); }} title="Clear chat"
+              <button onClick={e => { e.stopPropagation(); fetch(`${PLAID_SERVER}/api/chat`, { method: "DELETE" }).catch(()=>{}); setChatKey(k => k + 1); }} title="Clear chat"
                 style={{ background: "transparent", border: "none", cursor: "pointer", padding: "2px 6px", color: C.muted, borderRadius: 4, display: "flex", alignItems: "center" }}>
                 <Icon name="trash" size={12} color={C.muted} />
               </button>
