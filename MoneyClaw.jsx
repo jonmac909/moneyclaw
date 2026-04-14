@@ -2878,7 +2878,7 @@ function DeploymentPlanTab({ data, setData, nwData, enriched, allocRows, totalVa
   );
 }
 
-function PortfolioTab({ data, setData, nwData, settings, setSettings, rates, theme, hide }) {
+function PortfolioTab({ data, setData, nwData, setNwData, bankAccounts, settings, setSettings, rates, theme, hide }) {
   const C = themes[theme]; const s = S(theme);
   const [filterBucket, setFilterBucket] = useState("All");
   const [filterTag, setFilterTag] = useState("All");
@@ -2906,6 +2906,151 @@ function PortfolioTab({ data, setData, nwData, settings, setSettings, rates, the
   const [priceRefreshing, setPriceRefreshing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(null);
   const [portSubTab, setPortSubTab] = useState("summary");
+
+  const [plaidSyncing, setPlaidSyncing] = useState(false);
+  const [plaidSyncMsg, setPlaidSyncMsg] = useState(null);
+
+  /* ── Sync holdings + cash balances from live Plaid connections ── */
+  const syncFromPlaid = async () => {
+    setPlaidSyncing(true); setPlaidSyncMsg(null);
+    try {
+      const r = await fetch(`${PLAID_SERVER}/api/plaid/sync-all`);
+      if (!r.ok) throw new Error("Plaid sync failed");
+      const conns = await r.json();
+      const PLAID_TYPE_MAP = { equity: "Stock", etf: "ETF", "fixed income": "Bond", "mutual fund": "Fund", cash: "Cash", crypto: "Crypto", derivative: "Other" };
+      const INST_BUCKET = (inst) => /holdco|opco|corp/i.test(inst || "") ? "Holdco" : "Personal";
+      const existingByKey = {};
+      (data.holdings || []).forEach(h => { if (h.plaidKey) existingByKey[h.plaidKey] = h; });
+
+      const newHoldings = [];
+      const unmatched = (data.holdings || []).filter(h => !h.plaidKey); // user-manual holdings kept as-is
+      let acctCount = 0, holdCount = 0;
+
+      for (const conn of conns) {
+        if (conn.error) continue;
+        const accountsById = {};
+        (conn.accounts || []).forEach(a => { accountsById[a.id] = a; });
+        const bucket = INST_BUCKET(conn.institution);
+
+        // Investment holdings from Plaid
+        (conn.holdings || []).forEach(h => {
+          const key = `${h.accountId}:${h.securityId}`;
+          const acct = accountsById[h.accountId];
+          const acctName = acct ? `${conn.institution} ${acct.name || acct.subtype || ""}`.trim() : conn.institution;
+          const existing = existingByKey[key];
+          const price = h.currentPrice || (h.quantity > 0 ? h.currentValue / h.quantity : 0);
+          // Plaid returns cost_basis as TOTAL cost for the position; convert to per-unit
+          const cost = (h.costBasis && h.quantity > 0) ? h.costBasis / h.quantity : price;
+          newHoldings.push({
+            id: existing?.id || uid(),
+            name: existing?.name || h.name || h.ticker || "Unknown",
+            ticker: h.ticker || existing?.ticker || "",
+            bucket: existing?.bucket || bucket,
+            account: existing?.account || acctName,
+            type: existing?.type || PLAID_TYPE_MAP[(h.type || "").toLowerCase()] || "Other",
+            currency: h.currency || existing?.currency || "USD",
+            lots: [{ id: (existing?.lots && existing.lots[0]?.id) || uid(), date: existing?.lots?.[0]?.date || new Date().toISOString().slice(0, 10), qty: h.quantity || 0, costPerUnit: cost || 0, currentPrice: price || 0 }],
+            tags: existing?.tags || [],
+            targetType: existing?.targetType || null, targetValue: existing?.targetValue || null,
+            alertAbove: existing?.alertAbove || null, alertBelow: existing?.alertBelow || null,
+            alertPctUp: existing?.alertPctUp || null, alertPctDown: existing?.alertPctDown || null,
+            plaidKey: key, plaidConnId: conn.id, plaidSyncedAt: new Date().toISOString(),
+          });
+          holdCount++;
+        });
+
+        // Cash accounts as pseudo-holdings (checking/savings/money market, also standalone cash balances in investment accounts if they slip through)
+        (conn.accounts || []).forEach(a => {
+          if (!["depository", "investment"].includes(a.type)) return;
+          const isCashAcct = a.type === "depository" || ["cash management", "money market"].includes(a.subtype || "");
+          if (!isCashAcct) return;
+          if (!a.balance || a.balance <= 0) return;
+          const key = `${a.id}:CASH`;
+          const existing = existingByKey[key];
+          newHoldings.push({
+            id: existing?.id || uid(),
+            name: existing?.name || `${conn.institution} ${a.name || a.subtype}`,
+            ticker: "CASH",
+            bucket: existing?.bucket || bucket,
+            account: existing?.account || `${conn.institution} ${a.name || a.subtype || ""}`.trim(),
+            type: "Cash",
+            currency: a.currency || "CAD",
+            lots: [{ id: (existing?.lots && existing.lots[0]?.id) || uid(), date: new Date().toISOString().slice(0, 10), qty: 1, costPerUnit: a.balance, currentPrice: a.balance }],
+            tags: existing?.tags || [],
+            targetType: existing?.targetType || null, targetValue: existing?.targetValue || null,
+            alertAbove: null, alertBelow: null, alertPctUp: null, alertPctDown: null,
+            plaidKey: key, plaidConnId: conn.id, plaidAccountId: a.id, plaidSyncedAt: new Date().toISOString(),
+          });
+          acctCount++;
+        });
+      }
+
+      setData({ ...data, holdings: [...unmatched, ...newHoldings], plaidSyncedAt: new Date().toISOString(), useLivePlaid: true });
+
+      // ── Build a Plaid-sourced NW snapshot for the current month ──
+      if (setNwData) {
+        const ACCT_TYPE_MAP = {
+          depository: "Cash",
+          credit: "Liability",
+          loan: "Liability",
+          investment: "Stock",
+          brokerage: "Stock",
+        };
+        const nwItems = [];
+        let nwAcctCount = 0;
+        for (const conn of conns) {
+          if (conn.error) continue;
+          const holdingsByAcct = {};
+          (conn.holdings || []).forEach(h => { (holdingsByAcct[h.accountId] = holdingsByAcct[h.accountId] || []).push(h); });
+          const instBucket = INST_BUCKET(conn.institution);
+          (conn.accounts || []).forEach(a => {
+            const userCfg = bankAccounts?.[a.id];
+            if (userCfg?.enabled === false) return;
+            const bucket = userCfg?.bucket || instBucket;
+            const name = userCfg?.nickname || `${conn.institution} ${a.name || a.subtype || ""}`.trim();
+            let value = Number(a.balance || 0);
+            let type = ACCT_TYPE_MAP[a.type] || "Other";
+            const isLiability = a.type === "credit" || a.type === "loan";
+            // For investment accounts with no balance, sum holdings
+            if (a.type === "investment" && (!value || value === 0)) {
+              const hs = holdingsByAcct[a.id] || [];
+              value = hs.reduce((s2, h) => s2 + Number(h.currentValue || 0), 0);
+              // Infer type from dominant holding
+              if (hs.length > 0) {
+                const types = {};
+                hs.forEach(h => { const t = PLAID_TYPE_MAP[(h.type || "").toLowerCase()] || "Other"; types[t] = (types[t] || 0) + Number(h.currentValue || 0); });
+                type = Object.entries(types).sort((x, y) => y[1] - x[1])[0][0];
+              }
+            }
+            if (value <= 0) return;
+            nwItems.push({
+              id: `plaid_${a.id}`, bucket, name, currency: a.currency || "CAD",
+              value, isLiability, type, plaidAccountId: a.id, plaidConnId: conn.id,
+            });
+            nwAcctCount++;
+          });
+        }
+        const monthKey = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+        setNwData(prev => {
+          const snaps = prev?.snapshots || [];
+          const idx = snaps.findIndex(s => s.month === monthKey);
+          const plaidSnap = { month: monthKey, items: nwItems, source: "plaid", syncedAt: new Date().toISOString() };
+          const nextSnaps = idx >= 0 ? [plaidSnap, ...snaps.slice(0, idx), ...snaps.slice(idx + 1)] : [plaidSnap, ...snaps];
+          // Sort latest first by month
+          nextSnaps.sort((a, b) => (b.month || "").localeCompare(a.month || ""));
+          return { ...prev, snapshots: nextSnaps, plaidSyncedAt: new Date().toISOString() };
+        });
+        setPlaidSyncMsg(`Synced ${holdCount} holdings · ${acctCount} cash · ${nwAcctCount} NW items`);
+      } else {
+        setPlaidSyncMsg(`Synced ${holdCount} holdings + ${acctCount} cash accounts`);
+      }
+      setTimeout(() => setPlaidSyncMsg(null), 5000);
+    } catch (e) {
+      setPlaidSyncMsg(`Sync failed: ${e.message}`);
+      setTimeout(() => setPlaidSyncMsg(null), 4000);
+    }
+    setPlaidSyncing(false);
+  };
 
   const refreshPrices = async () => {
     setPriceRefreshing(true);
@@ -2967,8 +3112,10 @@ function PortfolioTab({ data, setData, nwData, settings, setSettings, rates, the
   const totalCostCAD = filtered.reduce((s, h) => s + toBase(h.totalCost, h.currency, rates), 0);
   const totalGain = totalValueCAD - totalCostCAD;
 
-  /* allocation by type — derive from NW snapshot (excludes liabilities & real estate for investable allocation) */
+  /* allocation by type — derive from NW snapshot (excludes liabilities & real estate for investable allocation).
+     Skipped when useLivePlaid is on so allocation uses only live Plaid-synced holdings. */
   const nwAllocItems = useMemo(() => {
+    if (data.useLivePlaid) return null;
     const snap = nwData?.snapshots?.[0];
     if (!snap || !snap.items?.length) return null;
     const result = [];
@@ -3126,13 +3273,18 @@ function PortfolioTab({ data, setData, nwData, settings, setSettings, rates, the
   return (
     <div>
       {/* ── Portfolio sub-tabs ── */}
-      <div style={{ display: "flex", gap: 0, borderBottom: `2px solid ${C.border}33`, marginBottom: 16 }}>
+      <div style={{ display: "flex", gap: 0, borderBottom: `2px solid ${C.border}33`, marginBottom: 16, alignItems: "flex-end" }}>
         {[["summary", "Summary"], ["alerts", "Alerts"], ["deployment", "Deployment"]].map(([key, label]) => (
           <button key={key} onClick={() => setPortSubTab(key)}
             style={{ background: "none", border: "none", borderBottom: portSubTab === key ? `2px solid ${C.orange}` : "2px solid transparent",
               padding: "8px 18px", marginBottom: -2, color: portSubTab === key ? C.text : C.muted,
               fontWeight: portSubTab === key ? 700 : 400, fontSize: 14, cursor: "pointer", letterSpacing: 0.3 }}>{label}</button>
         ))}
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, paddingBottom: 6 }}>
+          {plaidSyncMsg && <span style={{ fontSize: 10, color: plaidSyncMsg.startsWith("Sync failed") ? C.red : C.green }}>{plaidSyncMsg}</span>}
+          {data.plaidSyncedAt && !plaidSyncMsg && <span style={{ fontSize: 9, color: C.muted }}>Plaid synced {new Date(data.plaidSyncedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>}
+          <button style={{ ...s.btnSm, fontSize: 11, padding: "4px 12px", background: data.useLivePlaid ? C.accent + "22" : "transparent", color: C.accent, border: `1px solid ${C.accent}55` }} onClick={syncFromPlaid} disabled={plaidSyncing}>{plaidSyncing ? "Syncing..." : data.useLivePlaid ? "↻ Sync from Plaid" : "Sync from Plaid"}</button>
+        </div>
       </div>
 
       {portSubTab === "summary" && <>
@@ -3346,6 +3498,7 @@ function PortfolioTab({ data, setData, nwData, settings, setSettings, rates, the
                   <span style={{ ...s.mono, fontSize: 13, fontWeight: 700, color: C.accent }}>{mask(fmt(groupVal), hide)}</span>
                   <span style={{ fontSize: 11, color: C.muted }}>{totalValueCAD > 0 ? (groupVal / totalValueCAD * 100).toFixed(0) + "%" : ""}</span>
                   {group.key === "ib" && <button style={{ ...s.btnSm, fontSize: 11, padding: "4px 10px" }} onClick={refreshPrices} disabled={priceRefreshing}>{priceRefreshing ? "..." : "Refresh Prices"}</button>}
+                  {group.key === "ib" && <button style={{ ...s.btnSm, fontSize: 11, padding: "4px 10px", background: C.accent + "22", color: C.accent, border: `1px solid ${C.accent}44` }} onClick={syncFromPlaid} disabled={plaidSyncing}>{plaidSyncing ? "..." : "Sync from Plaid"}</button>}
                 </div>
               </div>
               {lastRefresh && group.key === "ib" && <div style={{ fontSize: 9, color: C.green, marginBottom: 6 }}>Prices updated {lastRefresh}</div>}
@@ -6904,6 +7057,8 @@ function FinanceChatTab({ nwData, portData, cfData, settings, rates, theme, rule
   const [showRules, setShowRules] = useState(false);
   const [newRule, setNewRule] = useState("");
   const chatEndRef = useRef(null);
+  const messagesRef = useRef(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
   const [marketQuotes, setMarketQuotes] = useState({});
 
   /* ── Fetch live quotes for portfolio tickers + key ETFs ── */
@@ -6960,7 +7115,14 @@ function FinanceChatTab({ nwData, portData, cfData, settings, rates, theme, rule
     } catch (_) {}
   };
 
-  useEffect(() => { if (messages.length > 1) chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [serverMsgs]);
+  /* Track whether the user is scrolled to the bottom of the chat. No auto-scroll. */
+  const onMessagesScroll = () => {
+    const el = messagesRef.current;
+    if (!el) return;
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    setIsAtBottom(near);
+  };
+  const scrollToBottom = () => chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
 
   /* ── Build financial context from all app data ── */
   const getContext = () => {
@@ -7381,7 +7543,7 @@ function FinanceChatTab({ nwData, portData, cfData, settings, rates, theme, rule
   const removeRule = (id) => setRules(rules.filter(r => r.id !== id));
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, position: "relative" }}>
 
       {/* Rules toggle */}
       <div style={{ display: "flex", justifyContent: "flex-end", padding: "6px 0" }}>
@@ -7414,7 +7576,7 @@ function FinanceChatTab({ nwData, portData, cfData, settings, rates, theme, rule
       )}
 
       {/* Messages */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "12px 0" }}>
+      <div ref={messagesRef} onScroll={onMessagesScroll} style={{ flex: 1, overflowY: "auto", padding: "12px 0", position: "relative" }}>
         {messages.map(msg => (
           <div key={msg.id} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start", marginBottom: 12, padding: "0 4px" }}>
             <div style={{
@@ -7450,6 +7612,14 @@ function FinanceChatTab({ nwData, portData, cfData, settings, rates, theme, rule
         <style>{`@keyframes mcTypingBounce { 0%, 80%, 100% { transform: translateY(0); opacity: 0.4; } 40% { transform: translateY(-4px); opacity: 1; } }`}</style>
         <div ref={chatEndRef} />
       </div>
+
+      {/* Scroll-to-bottom button (shown when user has scrolled up) */}
+      {!isAtBottom && (
+        <button onClick={scrollToBottom} aria-label="Scroll to latest"
+          style={{ position: "absolute", right: 16, bottom: 76, background: C.accent, color: "#fff", border: "none",
+            borderRadius: "50%", width: 32, height: 32, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.25)", fontSize: 16, lineHeight: 1, zIndex: 2 }}>↓</button>
+      )}
 
       {/* Input */}
       <div style={{ display: "flex", gap: 8, padding: "12px 0", borderTop: `1px solid ${C.border}` }}>
@@ -7824,7 +7994,7 @@ export default function MoneyClaw() {
           <>
             {tab === "overview" && <OverviewTab portData={portData} setPortData={setPortData} watchlistData={watchlistData} nwData={nwData} rates={rates} todos={todos} setTodos={setTodos} rules={rules} settings={settings} theme={theme} hide={numbersHidden} />}
             {tab === "networth" && <NetWorthTab data={nwData} setData={setNwData} settings={settings} rates={rates} theme={theme} hide={numbersHidden} />}
-            {tab === "portfolio" && <PortfolioTab data={portData} setData={setPortData} nwData={nwData} settings={settings} setSettings={setSettings} rates={rates} theme={theme} hide={numbersHidden} />}
+            {tab === "portfolio" && <PortfolioTab data={portData} setData={setPortData} nwData={nwData} setNwData={setNwData} bankAccounts={cfData?.bankAccounts || {}} settings={settings} setSettings={setSettings} rates={rates} theme={theme} hide={numbersHidden} />}
             {tab === "cashflow" && <CashFlowTab data={cfData} setData={setCfData} nwData={nwData} settings={settings} rates={rates} theme={theme} hide={numbersHidden} />}
             {tab === "watchlist" && <WatchlistTab data={watchlistData} setData={setWatchlistData} portData={portData} settings={settings} rates={rates} theme={theme} />}
             {tab === "settings" && <SettingsTab settings={settings} setSettings={setSettings} rates={rates} setRates={setRates} theme={theme} tabPasswords={tabPasswords} saveTabPasswords={saveTabPasswords} handleRemovePassword={handleRemovePassword} unlockedTabs={unlockedTabs} />}

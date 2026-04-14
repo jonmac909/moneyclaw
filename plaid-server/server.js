@@ -242,9 +242,7 @@ app.post("/api/plaid/transactions/:connId", async (req, res) => {
    7. SYNC ALL — convenience endpoint that pulls everything
    ───────────────────────────────────────────── */
 app.get("/api/plaid/sync-all", async (req, res) => {
-  const results = [];
-
-  for (const conn of connections) {
+  const perConn = connections.map(async (conn) => {
     const result = { id: conn.id, institution: conn.institution, accounts: [], holdings: [], error: null };
     try {
       // Balances
@@ -252,10 +250,13 @@ app.get("/api/plaid/sync-all", async (req, res) => {
       result.accounts = balRes.data.accounts.map(a => ({
         id: a.account_id,
         name: a.name,
+        officialName: a.official_name,
         type: a.type,
         subtype: a.subtype,
         currency: a.balances.iso_currency_code || "CAD",
-        balance: a.balances.current,
+        balance: a.balances.current ?? a.balances.available ?? null,
+        available: a.balances.available,
+        mask: a.mask,
       }));
 
       // Try investment holdings (will fail gracefully for non-investment accounts)
@@ -266,8 +267,10 @@ app.get("/api/plaid/sync-all", async (req, res) => {
         result.holdings = (invRes.data.holdings || []).map(h => {
           const sec = securities[h.security_id] || {};
           return {
+            accountId: h.account_id,
+            securityId: h.security_id,
             ticker: sec.ticker_symbol, name: sec.name, type: sec.type,
-            currency: sec.iso_currency_code || "CAD",
+            currency: sec.iso_currency_code || h.iso_currency_code || "CAD",
             quantity: h.quantity, costBasis: h.cost_basis,
             currentValue: h.institution_value, currentPrice: sec.close_price,
           };
@@ -276,9 +279,10 @@ app.get("/api/plaid/sync-all", async (req, res) => {
     } catch (err) {
       result.error = err.response?.data?.error_message || err.message;
     }
-    results.push(result);
-  }
+    return result;
+  });
 
+  const results = await Promise.all(perConn);
   res.json(results);
 });
 
