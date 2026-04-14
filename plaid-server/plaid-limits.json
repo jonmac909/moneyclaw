@@ -1,0 +1,14 @@
+{
+  "_comment": "Hard rules: Plaid once per week. Tiingo once per day. Caps editable here.",
+  "daily_usd": 5.0,
+  "monthly_usd": 50.0,
+  "cooldown_ms_default": 604800000,
+  "cooldown_ms_overrides": {
+    "linkTokenCreate": 0,
+    "itemPublicTokenExchange": 0,
+    "itemGet": 3600000,
+    "itemRemove": 0
+  },
+  "breaker_threshold": 3,
+  "breaker_cooldown_ms": 3600000
+}

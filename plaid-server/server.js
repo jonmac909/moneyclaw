@@ -17,6 +17,7 @@ const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
 const { Configuration, PlaidApi, PlaidEnvironments, Products, CountryCode } = require("plaid");
+const billing = require("./plaid-billing");
 
 const app = express();
 app.use(cors({ origin: true }));
@@ -48,14 +49,14 @@ const saveConnections = () => fs.writeFileSync(CONN_FILE, JSON.stringify(connect
    ───────────────────────────────────────────── */
 app.post("/api/plaid/create-link-token", async (req, res) => {
   try {
-    const response = await plaid.linkTokenCreate({
+    const response = await billing.guardedCall("linkTokenCreate", null, () => plaid.linkTokenCreate({
       user: { client_user_id: "moneyclaw-user-1" },
       client_name: "MoneyClaw",
       products: [Products.Transactions],
       optional_products: [Products.Investments],
       country_codes: [CountryCode.Ca, CountryCode.Us],
       language: "en",
-    });
+    }));
     res.json({ link_token: response.data.link_token });
   } catch (err) {
     console.error("create-link-token error:", err.response?.data || err.message);
@@ -71,7 +72,7 @@ app.post("/api/plaid/create-link-token", async (req, res) => {
 app.post("/api/plaid/exchange-token", async (req, res) => {
   try {
     const { public_token, institution } = req.body;
-    const response = await plaid.itemPublicTokenExchange({ public_token });
+    const response = await billing.guardedCall("itemPublicTokenExchange", null, () => plaid.itemPublicTokenExchange({ public_token }));
     const { access_token, item_id } = response.data;
 
     const conn = {
@@ -99,6 +100,54 @@ app.get("/api/plaid/connections", (req, res) => {
   res.json(connections.map(c => ({ id: c.id, institution: c.institution, connectedAt: c.connectedAt })));
 });
 
+/* Per-connection health: surfaces ITEM_LOGIN_REQUIRED etc. so the UI can
+   tell the user whether to retry or re-authenticate via Plaid Link update-mode. */
+/* ─────────────────────────────────────────────
+   BILLING SAFEGUARD TELEMETRY & ADMIN
+   ───────────────────────────────────────────── */
+app.get("/api/plaid/usage", (req, res) => {
+  res.json(billing.usageSummary());
+});
+app.post("/api/plaid/reset-breaker/:connId", (req, res) => {
+  billing.resetBreaker(req.params.connId);
+  res.json({ ok: true, connId: req.params.connId });
+});
+app.post("/api/plaid/reset-cooldown/:connId", (req, res) => {
+  billing.resetCooldown(req.params.connId, req.query.endpoint);
+  res.json({ ok: true, connId: req.params.connId, endpoint: req.query.endpoint || "all" });
+});
+
+/* Convert billing errors into 429 JSON instead of 500 */
+app.use((err, req, res, next) => {
+  if (err && err.code && err.status === 429) {
+    return res.status(429).json({ error: err.message, error_code: err.code });
+  }
+  next(err);
+});
+
+app.get("/api/plaid/item-status", async (req, res) => {
+  const results = await Promise.all(connections.map(async (conn) => {
+    try {
+      const r = await billing.guardedCall("itemGet", conn.id, () => plaid.itemGet({ access_token: conn.accessToken }));
+      return {
+        id: conn.id, institution: conn.institution,
+        status: r.data.item?.error ? "error" : "ok",
+        error_code: r.data.item?.error?.error_code || null,
+        error_message: r.data.item?.error?.error_message || null,
+        consent_expiration_time: r.data.item?.consent_expiration_time || null,
+        webhook: r.data.item?.webhook || null,
+      };
+    } catch (err) {
+      return {
+        id: conn.id, institution: conn.institution, status: "fetch_error",
+        error_code: err.response?.data?.error_code || null,
+        error_message: err.response?.data?.error_message || err.message,
+      };
+    }
+  }));
+  res.json(results);
+});
+
 /* ─────────────────────────────────────────────
    4. GET ALL ACCOUNTS (balances) for a connection
    ───────────────────────────────────────────── */
@@ -107,12 +156,12 @@ app.get("/api/plaid/accounts/:connId", async (req, res) => {
   if (!conn) return res.status(404).json({ error: "Connection not found" });
 
   try {
-    const response = await plaid.accountsBalanceGet({ access_token: conn.accessToken });
+    const response = await billing.guardedCall("accountsBalanceGet", conn.id, () => plaid.accountsBalanceGet({ access_token: conn.accessToken }));
 
     /* For investment accounts, try to get total value from holdings */
     let holdingsTotal = {};
     try {
-      const hRes = await plaid.investmentsHoldingsGet({ access_token: conn.accessToken });
+      const hRes = await billing.guardedCall("investmentsHoldingsGet", conn.id, () => plaid.investmentsHoldingsGet({ access_token: conn.accessToken }));
       (hRes.data.holdings || []).forEach(h => {
         holdingsTotal[h.account_id] = (holdingsTotal[h.account_id] || 0) + (h.institution_value || 0);
       });
@@ -145,7 +194,7 @@ app.get("/api/plaid/holdings/:connId", async (req, res) => {
   if (!conn) return res.status(404).json({ error: "Connection not found" });
 
   try {
-    const response = await plaid.investmentsHoldingsGet({ access_token: conn.accessToken });
+    const response = await billing.guardedCall("investmentsHoldingsGet", conn.id, () => plaid.investmentsHoldingsGet({ access_token: conn.accessToken }));
     const securities = {};
     (response.data.securities || []).forEach(s => {
       securities[s.security_id] = {
@@ -207,13 +256,19 @@ app.post("/api/plaid/transactions/:connId", async (req, res) => {
     let hasMore = true;
     let offset = 0;
 
+    let pageCount = 0;
+    const MAX_PAGES = 20; // hard safety cap: max 10,000 txns per connection per call
     while (hasMore) {
-      const response = await plaid.transactionsGet({
+      if (++pageCount > MAX_PAGES) {
+        console.warn(`transactions page limit hit for ${conn.id} after ${pageCount} pages`);
+        break;
+      }
+      const response = await billing.guardedCall("transactionsGet", conn.id, () => plaid.transactionsGet({
         access_token: conn.accessToken,
         start_date: start,
         end_date: end,
         options: { count: 500, offset },
-      });
+      }), { force: pageCount > 1 }); // subsequent pages skip cooldown (same logical call)
       allTxns = allTxns.concat(response.data.transactions);
       hasMore = allTxns.length < response.data.total_transactions;
       offset = allTxns.length;
@@ -246,7 +301,7 @@ app.get("/api/plaid/sync-all", async (req, res) => {
     const result = { id: conn.id, institution: conn.institution, accounts: [], holdings: [], error: null };
     try {
       // Balances
-      const balRes = await plaid.accountsBalanceGet({ access_token: conn.accessToken });
+      const balRes = await billing.guardedCall("accountsBalanceGet", conn.id, () => plaid.accountsBalanceGet({ access_token: conn.accessToken }));
       result.accounts = balRes.data.accounts.map(a => ({
         id: a.account_id,
         name: a.name,
@@ -261,7 +316,7 @@ app.get("/api/plaid/sync-all", async (req, res) => {
 
       // Try investment holdings (will fail gracefully for non-investment accounts)
       try {
-        const invRes = await plaid.investmentsHoldingsGet({ access_token: conn.accessToken });
+        const invRes = await billing.guardedCall("investmentsHoldingsGet", conn.id, () => plaid.investmentsHoldingsGet({ access_token: conn.accessToken }));
         const securities = {};
         (invRes.data.securities || []).forEach(s => { securities[s.security_id] = s; });
         result.holdings = (invRes.data.holdings || []).map(h => {
@@ -294,7 +349,7 @@ app.delete("/api/plaid/connections/:connId", async (req, res) => {
   if (idx === -1) return res.status(404).json({ error: "Connection not found" });
 
   try {
-    await plaid.itemRemove({ access_token: connections[idx].accessToken });
+    await billing.guardedCall("itemRemove", connections[idx].id, () => plaid.itemRemove({ access_token: connections[idx].accessToken }));
   } catch (_) { /* best effort */ }
 
   const removed = connections.splice(idx, 1)[0];

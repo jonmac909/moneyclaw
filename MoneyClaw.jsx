@@ -416,6 +416,76 @@ function StatCard({ label, value, sub, color, C }) {
   );
 }
 
+/* Layer 6: Plaid usage telemetry panel — shows spend/remaining, breakers, cooldowns. */
+function PlaidUsagePanel({ C, s }) {
+  const [u, setU] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const load = async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(`${PLAID_SERVER}/api/plaid/usage`);
+      setU(await r.json());
+    } catch (_) {}
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+  if (!u) return null;
+  const barPct = (today, lim) => lim > 0 ? Math.min(100, (today / lim) * 100) : 0;
+  const barColor = pct => pct >= 90 ? C.red : pct >= 70 ? C.orange : C.accent;
+  const fmt$ = n => `$${(n || 0).toFixed(2)}`;
+  return (
+    <div style={{ ...s.card, padding: "12px 16px", marginBottom: 16, borderLeft: `3px solid ${u.disabled ? C.red : C.accent}` }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>
+          Plaid Billing Safeguards {u.disabled && <span style={{ color: C.red, marginLeft: 8 }}>· DISABLED (PLAID_DISABLED=1)</span>}
+        </div>
+        <button style={{ ...s.btnSm, fontSize: 10, padding: "3px 8px" }} onClick={load} disabled={loading}>{loading ? "..." : "Refresh"}</button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 10 }}>
+        <div>
+          <div style={{ fontSize: 10, color: C.muted, marginBottom: 2 }}>TODAY — {u.today.calls} calls</div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+            <span style={{ fontSize: 16, fontWeight: 700, color: barColor(barPct(u.today.totalUsd, u.limits.daily_usd)) }}>{fmt$(u.today.totalUsd)}</span>
+            <span style={{ fontSize: 11, color: C.muted }}>/ {fmt$(u.limits.daily_usd)} cap · {fmt$(u.today.remainingUsd)} left</span>
+          </div>
+          <div style={{ height: 4, background: C.border + "44", borderRadius: 2, marginTop: 4, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${barPct(u.today.totalUsd, u.limits.daily_usd)}%`, background: barColor(barPct(u.today.totalUsd, u.limits.daily_usd)), transition: "width .3s" }} />
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 10, color: C.muted, marginBottom: 2 }}>THIS MONTH — {u.month.calls} calls</div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+            <span style={{ fontSize: 16, fontWeight: 700, color: barColor(barPct(u.month.totalUsd, u.limits.monthly_usd)) }}>{fmt$(u.month.totalUsd)}</span>
+            <span style={{ fontSize: 11, color: C.muted }}>/ {fmt$(u.limits.monthly_usd)} cap · {fmt$(u.month.remainingUsd)} left</span>
+          </div>
+          <div style={{ height: 4, background: C.border + "44", borderRadius: 2, marginTop: 4, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${barPct(u.month.totalUsd, u.limits.monthly_usd)}%`, background: barColor(barPct(u.month.totalUsd, u.limits.monthly_usd)), transition: "width .3s" }} />
+          </div>
+        </div>
+      </div>
+      {Object.keys(u.today.byEndpoint).length > 0 && (
+        <div style={{ fontSize: 10, color: C.muted, marginBottom: 8 }}>
+          Today by endpoint: {Object.entries(u.today.byEndpoint).map(([k, v]) => `${k} ${v.calls}×${v.fails ? ` (${v.fails}❌)` : ""} ${fmt$(v.cost)}`).join(" · ")}
+        </div>
+      )}
+      {u.breakers.filter(b => b.open).length > 0 && (
+        <div style={{ fontSize: 11, color: C.orange, marginBottom: 6 }}>
+          ⚠ {u.breakers.filter(b => b.open).length} circuit breaker(s) open:{" "}
+          {u.breakers.filter(b => b.open).map(b => (
+            <button key={b.connId} style={{ ...s.btnSm, fontSize: 9, padding: "2px 6px", marginLeft: 4, background: C.orange + "22", color: C.orange, border: `1px solid ${C.orange}44` }}
+              onClick={async () => { await fetch(`${PLAID_SERVER}/api/plaid/reset-breaker/${b.connId}`, { method: "POST" }); load(); }}>
+              Reset {b.connId.slice(-6)}
+            </button>
+          ))}
+        </div>
+      )}
+      <div style={{ fontSize: 9, color: C.muted }}>
+        Caps editable in <code>plaid-server/plaid-limits.json</code> · Kill switch: set <code>PLAID_DISABLED=1</code> in .env
+      </div>
+    </div>
+  );
+}
+
 function CollapsibleStats({ label, children, C, defaultOpen = true }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
@@ -2917,9 +2987,20 @@ function PortfolioTab({ data, setData, nwData, setNwData, bankAccounts, plaidSki
 
   /* ── Sync holdings + cash balances from live Plaid connections ── */
   const syncFromPlaid = async () => {
+    // Layer 5 UI guard: confirm if the last sync was < 1 hour ago (saves Plaid $).
+    const last = data.plaidSyncedAt ? new Date(data.plaidSyncedAt).getTime() : 0;
+    const minsAgo = last ? Math.round((Date.now() - last) / 60000) : Infinity;
+    if (minsAgo < 60) {
+      const ok = window.confirm(`Last Plaid sync was ${minsAgo} min ago.\nEach sync hits Plaid and counts against your daily budget.\nSync again anyway?`);
+      if (!ok) return;
+    }
     setPlaidSyncing(true); setPlaidSyncMsg(null);
     try {
       const r = await fetch(`${PLAID_SERVER}/api/plaid/sync-all`);
+      if (r.status === 429) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(`Plaid guard: ${j.error || "budget / cooldown / breaker blocked"}`);
+      }
       if (!r.ok) throw new Error("Plaid sync failed");
       const conns = await r.json();
       const PLAID_TYPE_MAP = { equity: "Stock", etf: "ETF", "fixed income": "Bond", "mutual fund": "Fund", cash: "Cash", crypto: "Crypto", derivative: "Other" };
@@ -5232,6 +5313,9 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
               }}>Import All Transactions</button>
               <span style={{ fontSize: 11, color: C.muted }}>{acctEntries.length} accounts connected</span>
             </div>
+
+            {/* Plaid usage + billing safeguards panel */}
+            <PlaidUsagePanel C={C} s={s} />
 
             {/* Connection progress bar */}
             {plaidConnectStatus && plaidConnectStatus !== "done" && plaidConnectStatus !== "error" && (() => {
