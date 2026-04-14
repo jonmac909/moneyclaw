@@ -2878,7 +2878,7 @@ function DeploymentPlanTab({ data, setData, nwData, enriched, allocRows, totalVa
   );
 }
 
-function PortfolioTab({ data, setData, nwData, setNwData, bankAccounts, settings, setSettings, rates, theme, hide }) {
+function PortfolioTab({ data, setData, nwData, setNwData, bankAccounts, plaidSkip, settings, setSettings, rates, theme, hide }) {
   const C = themes[theme]; const s = S(theme);
   const [filterBucket, setFilterBucket] = useState("All");
   const [filterTag, setFilterTag] = useState("All");
@@ -2926,6 +2926,7 @@ function PortfolioTab({ data, setData, nwData, setNwData, bankAccounts, settings
       const unmatched = (data.holdings || []).filter(h => !h.plaidKey); // user-manual holdings kept as-is
       let acctCount = 0, holdCount = 0;
 
+      const skipAccts = new Set(plaidSkip || []);
       for (const conn of conns) {
         if (conn.error) continue;
         const accountsById = {};
@@ -2934,6 +2935,7 @@ function PortfolioTab({ data, setData, nwData, setNwData, bankAccounts, settings
 
         // Investment holdings from Plaid
         (conn.holdings || []).forEach(h => {
+          if (skipAccts.has(h.accountId)) return;
           const key = `${h.accountId}:${h.securityId}`;
           const acct = accountsById[h.accountId];
           const acctName = acct ? `${conn.institution} ${acct.name || acct.subtype || ""}`.trim() : conn.institution;
@@ -2961,6 +2963,7 @@ function PortfolioTab({ data, setData, nwData, setNwData, bankAccounts, settings
 
         // Cash accounts as pseudo-holdings (checking/savings/money market, also standalone cash balances in investment accounts if they slip through)
         (conn.accounts || []).forEach(a => {
+          if (skipAccts.has(a.id)) return;
           if (!["depository", "investment"].includes(a.type)) return;
           const isCashAcct = a.type === "depository" || ["cash management", "money market"].includes(a.subtype || "");
           if (!isCashAcct) return;
@@ -3004,6 +3007,7 @@ function PortfolioTab({ data, setData, nwData, setNwData, bankAccounts, settings
           (conn.holdings || []).forEach(h => { (holdingsByAcct[h.accountId] = holdingsByAcct[h.accountId] || []).push(h); });
           const instBucket = INST_BUCKET(conn.institution);
           (conn.accounts || []).forEach(a => {
+            if (skipAccts.has(a.id)) return;
             const userCfg = bankAccounts?.[a.id];
             if (userCfg?.enabled === false) return;
             const bucket = userCfg?.bucket || instBucket;
@@ -5141,8 +5145,10 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
                   let count = 0;
                   setData(prev => {
                     const updated = { ...(prev.bankAccounts || {}) };
+                    const skip = new Set(prev.plaidAccountSkip || []);
                     for (const { conn, accounts } of allAcctData) {
                       accounts.forEach(a => {
+                        if (skip.has(a.id)) return; // skip duplicates user chose to remove
                         const dupeKey = Object.keys(updated).find(k => k !== a.id && updated[k].mask === a.mask && updated[k].institution === conn.institution && updated[k].subtype === a.subtype);
                         if (dupeKey) { const old = updated[dupeKey]; delete updated[dupeKey]; updated[a.id] = { ...old, lastBalance: a.balance, lastSynced: new Date().toISOString() }; }
                         else if (!updated[a.id]) updated[a.id] = { name: a.name, institution: conn.institution, type: a.type, subtype: a.subtype, currency: a.currency, mask: a.mask, bucket: null, enabled: true, lastBalance: a.balance, lastSynced: new Date().toISOString() };
@@ -7992,7 +7998,7 @@ export default function MoneyClaw() {
           <>
             {tab === "overview" && <OverviewTab portData={portData} setPortData={setPortData} watchlistData={watchlistData} nwData={nwData} rates={rates} todos={todos} setTodos={setTodos} rules={rules} settings={settings} theme={theme} hide={numbersHidden} />}
             {tab === "networth" && <NetWorthTab data={nwData} setData={setNwData} settings={settings} rates={rates} theme={theme} hide={numbersHidden} />}
-            {tab === "portfolio" && <PortfolioTab data={portData} setData={setPortData} nwData={nwData} setNwData={setNwData} bankAccounts={cfData?.bankAccounts || {}} settings={settings} setSettings={setSettings} rates={rates} theme={theme} hide={numbersHidden} />}
+            {tab === "portfolio" && <PortfolioTab data={portData} setData={setPortData} nwData={nwData} setNwData={setNwData} bankAccounts={cfData?.bankAccounts || {}} plaidSkip={cfData?.plaidAccountSkip || []} settings={settings} setSettings={setSettings} rates={rates} theme={theme} hide={numbersHidden} />}
             {tab === "cashflow" && <CashFlowTab data={cfData} setData={setCfData} nwData={nwData} settings={settings} rates={rates} theme={theme} hide={numbersHidden} />}
             {tab === "watchlist" && <WatchlistTab data={watchlistData} setData={setWatchlistData} portData={portData} settings={settings} rates={rates} theme={theme} />}
             {tab === "settings" && <SettingsTab settings={settings} setSettings={setSettings} rates={rates} setRates={setRates} theme={theme} tabPasswords={tabPasswords} saveTabPasswords={saveTabPasswords} handleRemovePassword={handleRemovePassword} unlockedTabs={unlockedTabs} />}
