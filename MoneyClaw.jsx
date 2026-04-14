@@ -4343,8 +4343,8 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
                     <th style={{ ...s.th, width: "3%", padding: "6px 2px" }}></th>
                     <th style={{ ...s.th, width: "12%", padding: "6px 4px", cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => onSort("date")}>DATE{sortKey === "date" ? (sortDir === "asc" ? " ↑" : " ↓") : ""}</th>
                     <th style={{ ...s.th, padding: "6px 4px", cursor: "pointer" }} onClick={() => onSort("description")}>DESCRIPTION</th>
-                    <th style={{ ...s.th, width: showSummary ? "22%" : "14%", padding: "6px 4px", textAlign: "right", cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => onSort("amount")}>AMOUNT</th>
-                    {!showSummary && <th style={{ ...s.th, width: "20%", padding: "6px 4px", cursor: "pointer" }} onClick={() => onSort("category")}>CATEGORY</th>}
+                    <th style={{ ...s.th, width: "14%", padding: "6px 4px", textAlign: "right", cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => onSort("amount")}>AMOUNT</th>
+                    <th style={{ ...s.th, width: showSummary ? "18%" : "20%", padding: "6px 4px", cursor: "pointer" }} onClick={() => onSort("category")}>CATEGORY</th>
                     {!showSummary && <th style={{ ...s.th, width: "8%", padding: "6px 4px", whiteSpace: "nowrap" }}>TAG</th>}
                     <th style={{ ...s.th, width: "3%", padding: "6px 2px", textAlign: "center", color: C.green }}>✓</th>
                   </tr>
@@ -4399,13 +4399,13 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
                         color: isTransferTx(t) ? C.accent2 : t.type === "income" ? C.green : C.red }}>
                         {t.type === "income" ? "" : "-"}{t.currency !== "CAD" ? t.currency : ""}${fmtFull(t.amount).replace("$", "")}
                       </td>
-                      {!showSummary && <td style={{ padding: "4px 4px", fontSize: 11, color: C.text, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <td style={{ padding: "4px 4px", fontSize: 11, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         <select style={{ ...s.select, padding: "1px 2px", fontSize: 11, background: "transparent", border: "none", color: isTransferTx(t) ? C.accent2 : C.text, maxWidth: "100%" }}
                           value={t.category} onChange={e => recategorize(t.id, e.target.value)}>
                           {[...(t.type === "income" ? INCOME_CATS[t.bucket] || [] : [...(DEFAULT_TAX_CATS[t.bucket] || []), ...(TRANSFER_CATS[t.bucket] || [])]), t.category]
                             .filter((v, idx, a) => a.indexOf(v) === idx).map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
-                      </td>}
+                      </td>
                       {!showSummary && <td style={{ padding: "4px 4px", overflow: "hidden" }}>
                         <span style={{ ...S(theme).badge(BUCKET_COLORS[t.bucket]), fontSize: 8, padding: "2px 4px", whiteSpace: "nowrap" }}>{t.bucket}</span>
                       </td>}
@@ -4417,7 +4417,7 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
                 </tbody>
                 <tfoot>
                   <tr style={{ borderTop: `2px solid ${C.border}`, background: C.card2 + "33" }}>
-                    <td colSpan={showSummary ? 3 : 3} style={{ padding: "8px 4px", fontSize: 12, fontWeight: 700, color: C.text, textAlign: "right" }}>
+                    <td colSpan={3} style={{ padding: "8px 4px", fontSize: 12, fontWeight: 700, color: C.text, textAlign: "right" }}>
                       {sorted.length} transaction{sorted.length !== 1 ? "s" : ""}
                     </td>
                     <td style={{ padding: "8px 4px", fontSize: 12, fontWeight: 700, textAlign: "right", fontFamily: "monospace", whiteSpace: "nowrap", color: (() => { const inc = sorted.filter(t => t.type === "income" && !isTransferTx(t)).reduce((s2, t) => s2 + toBase(t.amount, t.currency || "CAD", rates), 0); const exp = sorted.filter(t => t.type === "expense" && !isTransferTx(t)).reduce((s2, t) => s2 + toBase(t.amount, t.currency || "CAD", rates), 0); return inc - exp >= 0 ? C.green : C.red; })() }}>
