@@ -143,9 +143,11 @@ const EXPENSE_CATS = {
   Opco: {
     "Ecomm House Variable Expenses": ["Business Subscription/SaaS", "Business Bills", "Business Purchases", "Business Education", "Business Travel", "Business Meals & Entertainment", "Business Advertising", "Business Staff", "Business Misc", "Bank Fees"],
     "Ecomm House Shared - Fixed": ["Business Auto"],
+    "Refunds": ["Business Refund"],
   },
   Holdco: {
     "Holdco Expenses": ["Bank Fees", "Business Staff", "Business Admin & Professional", "Business Misc"],
+    "Refunds": ["Business Refund"],
   },
   Jon: {
     "Personal": ["Entertainment", "TV Streaming", "Personal Care", "Shopping", "Personal Misc"],
@@ -153,6 +155,7 @@ const EXPENSE_CATS = {
     "Food": ["Alcohol, Bars", "Coffee Shops", "Groceries", "Food Delivery", "Restaurants"],
     "Car": ["Car Maintenance", "Gas/Transportation"],
     "Travel": ["Hotel/Accommodation", "Flights", "Car Rental", "Travel Activities", "Travel Misc"],
+    "Refunds": ["Personal Refund"],
   },
   Jacqueline: {
     "Personal": ["Entertainment", "TV Streaming", "Personal Care", "Shopping", "Personal Misc"],
@@ -160,6 +163,7 @@ const EXPENSE_CATS = {
     "Food": ["Alcohol, Bars", "Coffee Shops", "Groceries", "Food Delivery", "Restaurants"],
     "Car": ["Car Maintenance", "Gas/Transportation"],
     "Travel": ["Hotel/Accommodation", "Flights", "Car Rental", "Travel Activities", "Travel Misc"],
+    "Refunds": ["Personal Refund"],
   },
 };
 /* Migrate old category names → new names */
