@@ -131,8 +131,12 @@ function useUndoRedo(initial) {
 /* ═══════════════════════════════════════════════════════════
    DEFAULT DATA & CATEGORIES
    ═══════════════════════════════════════════════════════════ */
-const BUCKETS = ["Opco", "Holdco", "Personal"];
-const BUCKET_COLORS = { Opco: "#e05a47", Holdco: "#CC6D3D", Jon: "#A3B4C8", Jacqueline: "#6b9fc4" };
+const BUCKETS = ["Opco", "Holdco", "Jon", "Jacqueline"];
+const BUCKET_COLORS = { Opco: "#e05a47", Holdco: "#CC6D3D", Jon: "#A3B4C8", Jacqueline: "#6b9fc4", Personal: "#A3B4C8" };
+/* Display-only mapping for Income & Expenses UI: Jon / Jacqueline show as "Personal".
+   Internal bucket values stay Jon/Jacqueline so Net Worth keeps the breakdown. */
+const displayBucket = (b) => (b === "Jon" || b === "Jacqueline") ? "Personal" : b;
+const displayBucketColor = (b) => BUCKET_COLORS[displayBucket(b)] || BUCKET_COLORS.Jon;
 
 /* Expense categories — grouped by parent for hierarchy display */
 const EXPENSE_CATS = {
@@ -3010,7 +3014,9 @@ function PortfolioTab({ data, setData, nwData, setNwData, bankAccounts, plaidSki
             if (skipAccts.has(a.id)) return;
             const userCfg = bankAccounts?.[a.id];
             if (userCfg?.enabled === false) return;
-            const bucket = userCfg?.bucket || instBucket;
+            // NW buckets keep Jon/Jacqueline/Opco/Holdco granularity (use `owner`).
+            // The user-facing I&E bucket (Personal) is stored separately on bankAccounts.
+            const bucket = userCfg?.owner || userCfg?.bucket || instBucket;
             const name = userCfg?.nickname || `${conn.institution} ${a.name || a.subtype || ""}`.trim();
             let value = Number(a.balance || 0);
             let type = ACCT_TYPE_MAP[a.type] || "Other";
@@ -3436,9 +3442,9 @@ function PortfolioTab({ data, setData, nwData, setNwData, bankAccounts, plaidSki
                         {h.ticker && h.ticker !== "CASH" && <span style={{ color: C.muted, fontSize: 9, marginLeft: 4 }}>{h.name}</span>}
                         <span style={{ marginLeft: 6, fontSize: 9, padding: "1px 5px", borderRadius: 3, background: C.accent2 + "22", color: C.accent2 }}>{h.account}</span>
                       </td>
-                      <td style={{ padding: "5px 0", fontSize: 11, textAlign: "right", color: C.muted }}>{totalVal > 0 ? (h.valueCAD / totalVal * 100).toFixed(1) + "%" : "0%"}</td>
+                      <td />
                       <td style={{ padding: "5px 0", fontSize: 11, textAlign: "right", color: C.text }}>{mask(fmt(h.valueCAD), hide)}</td>
-                      <td style={{ padding: "5px 0", fontSize: 11, textAlign: "right", color: h.gainPct >= 0 ? C.green : C.red }}>{hide ? "•••" : (h.gainPct >= 0 ? "+" : "") + (h.gainPct * 100).toFixed(1) + "%"}</td>
+                      <td />
                       <td style={{ padding: "5px 0", fontSize: 9, textAlign: "right", color: C.muted }}>{h.currency !== "CAD" ? `${h.currency} ${fmtFull(h.currentValue)}` : ""}</td>
                     </tr>
                   ))}
@@ -3448,9 +3454,9 @@ function PortfolioTab({ data, setData, nwData, setNwData, bankAccounts, plaidSki
                         <span style={{ fontWeight: 600 }}>{it.name}</span>
                         <span style={{ marginLeft: 6, fontSize: 9, padding: "1px 5px", borderRadius: 3, background: C.accent2 + "22", color: C.accent2 }}>{it.bucket}</span>
                       </td>
-                      <td style={{ padding: "5px 0", fontSize: 11, textAlign: "right", color: C.muted }}>{totalVal > 0 ? (it.valueCAD / totalVal * 100).toFixed(1) + "%" : "0%"}</td>
+                      <td />
                       <td style={{ padding: "5px 0", fontSize: 11, textAlign: "right", color: C.text }}>{mask(fmt(it.valueCAD), hide)}</td>
-                      <td style={{ padding: "5px 0", fontSize: 11, textAlign: "right", color: C.muted }}>{it.currency}</td>
+                      <td />
                       <td style={{ padding: "5px 0", fontSize: 9, textAlign: "right", color: C.muted }}>{it.currency !== "CAD" ? `${it.currency} ${fmtFull(it.value)}` : ""}</td>
                     </tr>
                   ))}
@@ -4140,6 +4146,21 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
     /* Utilities */
     "fortisbc": "House Fortis", "fortis bc": "House Fortis", "fortisbc energy": "House Fortis",
     "bc hydro": "House Fortis",
+    /* Personal — health / medical */
+    "ortho": "Health", "orthodontist": "Health", "dentist": "Health", "dental": "Health",
+    "doctor": "Health", "medical": "Health", "pharmacy": "Health", "physio": "Health",
+    "chiro": "Health", "massage": "Health", "optometr": "Health", "vision": "Health",
+    "pacific blue cross": "Health", "blue cross": "Health", "sun life": "Health",
+    /* Personal — fitness / lifestyle */
+    "gym": "Fitness", "fitness": "Fitness", "yoga": "Fitness", "pilates": "Fitness",
+    "peloton": "Fitness", "classpass": "Fitness", "goodlife": "Fitness", "anytime fitness": "Fitness",
+    "steve nash": "Fitness", "crossfit": "Fitness",
+    /* Personal — education / kids */
+    "tuition": "Education", "school": "Education", "daycare": "Kids",
+    "montessori": "Kids", "preschool": "Kids",
+    /* Personal — memberships */
+    "costco": "Memberships", "sam's club": "Memberships",
+    "aaa": "Memberships", "caa": "Memberships",
   };
 
   const detectRecurring = useCallback(() => {
@@ -4640,7 +4661,7 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
                         </select>
                       </td>
                       {!showSummary && <td style={{ padding: "4px 4px", overflow: "hidden" }}>
-                        <span style={{ ...S(theme).badge(BUCKET_COLORS[t.bucket]), fontSize: 8, padding: "2px 4px", whiteSpace: "nowrap" }}>{t.bucket}</span>
+                        <span style={{ ...S(theme).badge(displayBucketColor(t.bucket)), fontSize: 8, padding: "2px 4px", whiteSpace: "nowrap" }}>{displayBucket(t.bucket)}</span>
                       </td>}
                       <td style={{ padding: "4px 2px", textAlign: "center", cursor: "pointer" }} onClick={() => toggleReviewed(t.id)}>
                         <span style={{ fontSize: 13, color: t.reviewed ? C.green : C.muted + "44" }}>{t.reviewed ? "✓" : "○"}</span>
@@ -5051,7 +5072,7 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
                           <td style={{ padding: "6px", fontSize: 12, color: C.muted, whiteSpace: "nowrap" }}>{s.date}</td>
                           <td style={{ padding: "6px", fontSize: 12, color: C.text, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={s.description}>{s.description}</td>
                           <td style={{ padding: "6px" }}>
-                            <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 3, background: (BUCKET_COLORS[s.bucket] || C.muted) + "22", color: BUCKET_COLORS[s.bucket] || C.muted }}>{s.bucket}</span>
+                            <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 3, background: (displayBucketColor(s.bucket) || C.muted) + "22", color: displayBucketColor(s.bucket) || C.muted }}>{displayBucket(s.bucket)}</span>
                           </td>
                           <td style={{ padding: "6px", fontSize: 12, fontFamily: "monospace", textAlign: "right", color: s.type === "income" ? C.green : C.text }}>{s.type === "income" ? "+" : "-"}{fmtFull(s.amount, s.currency)}</td>
                           <td style={{ padding: "6px", fontSize: 11, color: s.currentCat === "Uncategorized" ? C.orange : C.muted }}>{s.currentCat}</td>
