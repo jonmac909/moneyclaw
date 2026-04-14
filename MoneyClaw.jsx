@@ -7744,14 +7744,12 @@ export default function MoneyClaw() {
       const data = JSON.stringify(obj);
       window.name = data;
       try { localStorage.setItem("moneyclaw", data); } catch {}
-      // Save to server file every 10 seconds (not every 1.5s to avoid hammering)
-      const now = Date.now();
-      if (now - lastServerSave.current > 10000) {
-        lastServerSave.current = now;
-        fetch("http://localhost:8484/api/save", {
-          method: "POST", headers: { "Content-Type": "application/json" }, body: data
-        }).catch(() => {});
-      }
+      // Save to server every debounced batch (1.5s) so edits like bank nickname changes persist
+      // across reloads instead of being lost inside a 10s throttle window.
+      lastServerSave.current = Date.now();
+      fetch("http://localhost:8484/api/save", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: data
+      }).catch(() => {});
       setLastAutoSave(new Date().toLocaleTimeString());
     } catch {}
   }, [serverLoaded, nwData, portData, cfData, settings, rates, watchlistData, todos, rules]);
