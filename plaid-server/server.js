@@ -18,6 +18,7 @@ const fs = require("fs");
 const path = require("path");
 const { Configuration, PlaidApi, PlaidEnvironments, Products, CountryCode } = require("plaid");
 const billing = require("./plaid-billing");
+const tiingo = require("./tiingo");
 
 const app = express();
 app.use(cors({ origin: true }));
@@ -102,6 +103,36 @@ app.get("/api/plaid/connections", (req, res) => {
 
 /* Per-connection health: surfaces ITEM_LOGIN_REQUIRED etc. so the UI can
    tell the user whether to retry or re-authenticate via Plaid Link update-mode. */
+/* ─────────────────────────────────────────────
+   TIINGO (stock prices) — hard 24h cooldown per symbol
+   Drop-in replacement for the Yahoo Finance-backed quote / history routes.
+   ───────────────────────────────────────────── */
+app.get("/api/stocks/quote", async (req, res) => {
+  const symbols = String(req.query.symbols || "").split(",").map(s => s.trim()).filter(Boolean);
+  const force = req.query.force === "1";
+  if (!symbols.length) return res.status(400).json({ error: "symbols required" });
+  try {
+    const out = await tiingo.getQuotes(symbols, { force });
+    res.json(out);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+app.get("/api/stocks/history", async (req, res) => {
+  const symbol = String(req.query.symbol || "").trim();
+  const force = req.query.force === "1";
+  if (!symbol) return res.status(400).json({ error: "symbol required" });
+  try {
+    const out = await tiingo.getHistory(symbol, { force });
+    res.json(out);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+app.get("/api/stocks/cache", (req, res) => {
+  res.json(tiingo.cacheSummary());
+});
+
 /* ─────────────────────────────────────────────
    BILLING SAFEGUARD TELEMETRY & ADMIN
    ───────────────────────────────────────────── */
