@@ -3604,10 +3604,13 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
     if (low.includes("foreign exchange") || low.includes("fx exchange") || low.includes("currency exchange") || low.includes("currency conversion")) {
       return tryReturn(bucket === "Holdco" ? "Moving Money Holdco" : bucket === "Opco" ? "Moving Money Business" : "Moving Money Personal");
     }
-    /* Scheduled payments / credit memos with FT reference = inter-account transfers */
-    if ((low.includes("scheduled payment") || low.includes("credit memo")) && /ft\d{5,}/.test(low)) {
+    /* Scheduled payments with FT reference = inter-account transfers ONLY if matching credit memo exists.
+       Without a match, scheduled payments could be real bill payments to third parties. */
+    if (low.includes("credit memo")) {
       return tryReturn(bucket === "Holdco" ? "Moving Money Holdco" : bucket === "Opco" ? "Moving Money Business" : "Moving Money Personal");
     }
+    /* Scheduled payments: only Moving Money if FT number has a matching credit memo in transactions */
+    /* (handled at runtime in the enrichment step, not here — default to null so other tiers can categorize) */
     /* Funds transfer credit/debit = moving money between accounts */
     if (low.includes("funds transfer")) {
       return tryReturn(bucket === "Holdco" ? "Moving Money Holdco" : bucket === "Opco" ? "Moving Money Business" : "Moving Money Personal");
