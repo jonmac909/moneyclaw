@@ -644,30 +644,47 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
       const h = holdingsMap[sym];
       const name = q.shortName || sym;
       const belowAvg = h && h.avgCost && q.price < h.avgCost;
-      const below200 = tech?.signals?.some(sg => sg.includes("Below 200"));
-      const deathCross = tech?.ema50 && tech?.ema200 && tech.ema50 < tech.ema200;
-      const oversold = tech?.rsi14 < 30;
+      const below200 = tech?.ema200 && q.price < tech.ema200;
+      const above8 = tech?.ema50 && q.price > tech.ema50; /* using ema50 as proxy — 8 EMA not available from Yahoo */
+      const rsi = tech?.rsi14;
+      const rsiPrev = tech?.rsi14Prev;
+      const rsiRising = rsi && rsiPrev && rsi > rsiPrev;
+      const rsiFalling = rsi && rsiPrev && rsi < rsiPrev;
+      const oversold = rsi && rsi < 30;
+      const overbought = rsi && rsi > 70;
+      const ema50Below200 = tech?.ema50 && tech?.ema200 && tech.ema50 < tech.ema200;
+      const todayUp = q.changePct > 0;
+      const bouncing = todayUp && rsiRising && q.pctDown > 3;
 
-      if (deathCross) {
-        actions.push({ sym, type: "danger", msg: `${name} — death cross. Trend is bearish.`, score: 10,
-          signalTags: [`-${q.pctDown?.toFixed(1)}%`, "Death Cross"] });
-      }
-      if (below200 && !deathCross) {
-        actions.push({ sym, type: "danger", msg: `${name} below 200 EMA. ${h ? "Watch your position." : "Wait for recovery."}`, score: 8,
-          signalTags: [`-${q.pctDown?.toFixed(1)}%`, "↓200"] });
-      }
-      if (belowAvg) {
+      /* Build smart signal based on multiple indicators */
+      const tags = [`-${q.pctDown?.toFixed(1)}%`];
+      if (rsi) tags.push(`RSI ${Math.round(rsi)}`);
+
+      if (bouncing) {
+        actions.push({ sym, type: "buy", msg: `${name} bouncing — up ${q.changePct.toFixed(1)}% today, RSI ${Math.round(rsi)} rising. ${q.pctDown > 10 ? "Deep discount." : "Recovering."}`, score: 9,
+          signalTags: [...tags, "Bounce"] });
+      } else if (oversold && rsiRising) {
+        actions.push({ sym, type: "buy", msg: `${name} RSI ${Math.round(rsi)} turning up from oversold — early reversal signal.`, score: 9,
+          signalTags: [...tags, "RSI Reversal"] });
+      } else if (oversold && rsiFalling) {
+        actions.push({ sym, type: "danger", msg: `${name} RSI ${Math.round(rsi)} still falling — wait for reversal before adding.`, score: 8,
+          signalTags: [...tags, "Falling"] });
+      } else if (below200 && ema50Below200) {
+        actions.push({ sym, type: "danger", msg: `${name} below 200 EMA (50 EMA crossed under). Weakened trend — ${rsiRising ? "but momentum recovering." : "wait for stabilization."}`, score: 7,
+          signalTags: [...tags, "↓200 EMA"] });
+      } else if (below200) {
+        actions.push({ sym, type: "danger", msg: `${name} below 200 EMA. ${rsiRising ? "RSI recovering — watch for breakout." : "Wait for support."}`, score: 6,
+          signalTags: [...tags, "↓200"] });
+      } else if (belowAvg) {
         const discount = ((h.avgCost - q.price) / h.avgCost * 100).toFixed(1);
-        actions.push({ sym, type: "avgdown", msg: `Avg down on ${name} — ${discount}% below your cost of $${h.avgCost.toFixed(2)}.`, score: 7,
-          signalTags: [`-${discount}%`] });
-      }
-      if (q.pctDown >= 5 && !belowAvg) {
-        actions.push({ sym, type: "buy", msg: `Buy the ${name} dip — down ${q.pctDown.toFixed(1)}% from ATH.`, score: 5 + (q.pctDown > 10 ? 2 : 0),
-          signalTags: [`-${q.pctDown.toFixed(1)}%`] });
-      }
-      if (oversold && !belowAvg && q.pctDown < 5) {
-        actions.push({ sym, type: "buy", msg: `${name} RSI ${tech.rsi14} — oversold. Could be a buying opportunity.`, score: 6,
-          signalTags: [`-${q.pctDown?.toFixed(1)}%`, "RSI " + tech.rsi14] });
+        actions.push({ sym, type: "avgdown", msg: `Avg down on ${name} — ${discount}% below your cost of $${h.avgCost.toFixed(2)}.${rsiRising ? " Momentum improving." : ""}`, score: 7,
+          signalTags: [...tags] });
+      } else if (q.pctDown >= 5) {
+        actions.push({ sym, type: "buy", msg: `${name} dip — ${q.pctDown.toFixed(1)}% from ATH.${rsiRising ? " RSI rising, good entry." : todayUp ? " Green today." : ""}`, score: 5 + (q.pctDown > 10 ? 2 : 0),
+          signalTags: [...tags] });
+      } else if (overbought) {
+        actions.push({ sym, type: "info", msg: `${name} RSI ${Math.round(rsi)} — stretched. Consider trimming or waiting for pullback.`, score: 4,
+          signalTags: [...tags, "Overbought"] });
       }
     });
     const best = {};
@@ -6380,40 +6397,46 @@ function WatchlistTab({ data, setData, portData, settings, rates, theme }) {
       const h = holdingsMap[sym];
       const name = q.shortName || sym;
       const belowAvg = h && h.avgCost && q.price < h.avgCost;
-      const below200 = tech?.signals?.some(sg => sg.includes("Below 200"));
-      const below50 = tech?.signals?.some(sg => sg.includes("Below 50"));
-      const deathCross = tech?.ema50 && tech?.ema200 && tech.ema50 < tech.ema200;
-      const ema8below21 = tech?.signals?.some(sg => sg === "8 EMA < 21 EMA");
-      const oversold = tech?.rsi14 < 30;
+      const below200 = tech?.ema200 && q.price < tech.ema200;
+      const ema50Below200 = tech?.ema50 && tech?.ema200 && tech.ema50 < tech.ema200;
+      const rsi = tech?.rsi14;
+      const rsiPrev = tech?.rsi14Prev;
+      const rsiRising = rsi && rsiPrev && rsi > rsiPrev;
+      const rsiFalling = rsi && rsiPrev && rsi < rsiPrev;
+      const oversold = rsi && rsi < 30;
+      const todayUp = q.changePct > 0;
+      const bouncing = todayUp && rsiRising && q.pctDown > 3;
 
-      // RED warnings — danger signals
-      if (deathCross) {
-        actions.push({ sym, type: "danger", msg: `${name} — death cross (50 EMA below 200 EMA). Trend is bearish, be cautious.`, score: 10,
-          signalTags: [`-${q.pctDown.toFixed(1)}%`, "Death Cross"], isHeld: !!h });
-      }
-      if (below200) {
-        actions.push({ sym, type: "danger", msg: `${name} is below its 200 EMA — long-term trend broken. ${h ? "Watch your position." : "Wait for recovery before entry."}`, score: 8,
-          signalTags: [`-${q.pctDown.toFixed(1)}%`, "↓200"], isHeld: !!h });
-      }
+      const tags = [`-${q.pctDown?.toFixed(1)}%`];
+      if (rsi) tags.push(`RSI ${Math.round(rsi)}`);
 
-      // GREEN — avg down opportunity (you hold it + it's below your cost)
-      if (belowAvg) {
+      if (bouncing) {
+        const amtStr = buyAmount ? ` Deploy $${buyAmount.toLocaleString()} (~${shares} shares).` : "";
+        actions.push({ sym, type: "buy", msg: `${name} bouncing — +${q.changePct.toFixed(1)}% today, RSI ${Math.round(rsi)} rising.${amtStr}`, score: 9,
+          signalTags: [...tags, "Bounce"], isHeld: !!h });
+      } else if (oversold && rsiRising) {
+        actions.push({ sym, type: "buy", msg: `${name} RSI ${Math.round(rsi)} turning up — early reversal signal.`, score: 9,
+          signalTags: [...tags, "RSI Reversal"], isHeld: !!h });
+      } else if (oversold && rsiFalling) {
+        actions.push({ sym, type: "danger", msg: `${name} RSI ${Math.round(rsi)} still falling — wait for reversal.`, score: 8,
+          signalTags: [...tags, "Falling"], isHeld: !!h });
+      } else if (below200 && ema50Below200) {
+        actions.push({ sym, type: "danger", msg: `${name} below 200 EMA, weakened trend. ${rsiRising ? "Momentum recovering." : "Wait for stabilization."}`, score: 7,
+          signalTags: [...tags, "↓200 EMA"], isHeld: !!h });
+      } else if (below200) {
+        actions.push({ sym, type: "danger", msg: `${name} below 200 EMA. ${rsiRising ? "RSI recovering — watch for breakout." : "Wait for support."}`, score: 6,
+          signalTags: [...tags, "↓200"], isHeld: !!h });
+      } else if (belowAvg) {
         const discount = ((h.avgCost - q.price) / h.avgCost * 100).toFixed(1);
         const amtStr = buyAmount ? ` Add $${buyAmount.toLocaleString()} (~${shares} shares).` : "";
-        actions.push({ sym, type: "avgdown", msg: `Avg down on ${name} — ${discount}% below your cost of $${h.avgCost.toFixed(2)}.${amtStr}`, score: 7,
-          signalTags: [`-${discount}%`], isHeld: true });
-      }
-
-      // GREEN — buy the dip (discount from ATH hits trigger)
-      if (q.pctDown >= triggerPct && !belowAvg) {
+        actions.push({ sym, type: "avgdown", msg: `Avg down on ${name} — ${discount}% below cost.${rsiRising ? " Momentum improving." : ""}${amtStr}`, score: 7,
+          signalTags: [...tags], isHeld: true });
+      } else if (q.pctDown >= triggerPct && !belowAvg) {
         const amtStr = buyAmount ? ` Add $${buyAmount.toLocaleString()} (~${shares} shares).` : "";
-        actions.push({ sym, type: "buy", msg: `Buy the ${name} dip — down ${q.pctDown.toFixed(1)}% from ATH.${amtStr}`, score: 5 + (q.pctDown > 10 ? 2 : 0),
-          signalTags: [`-${q.pctDown.toFixed(1)}%`], isHeld: !!h });
-      }
-
-      // ORANGE — oversold
-      if (oversold && !belowAvg && q.pctDown < triggerPct) {
-        actions.push({ sym, type: "buy", msg: `${name} RSI ${tech.rsi14} — oversold at $${q.price.toFixed(2)}. Could be a buying opportunity.`, score: 6,
+        actions.push({ sym, type: "buy", msg: `${name} dip — ${q.pctDown.toFixed(1)}% from ATH.${rsiRising ? " RSI rising." : todayUp ? " Green today." : ""}${amtStr}`, score: 5 + (q.pctDown > 10 ? 2 : 0),
+          signalTags: [...tags], isHeld: !!h });
+      } else if (oversold) {
+        actions.push({ sym, type: "buy", msg: `${name} RSI ${Math.round(rsi)} — oversold at $${q.price.toFixed(2)}. Potential buying opportunity.`, score: 6,
           signalTags: [`-${q.pctDown.toFixed(1)}%`, "RSI " + tech.rsi14], isHeld: !!h });
       }
     });
