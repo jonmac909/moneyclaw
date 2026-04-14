@@ -544,6 +544,13 @@ const DATA_FILE = path.join(__dirname, "..", "moneyclaw-data.json");
 
 app.post("/api/save", (req, res) => {
   try {
+    /* Only save if incoming data has fewer uncategorized transactions than disk — prevents stale browser data from overwriting categorized data */
+    const incomingUncat = (req.body?.cashflow?.transactions || []).filter(t => t.category === "Uncategorized").length;
+    let diskUncat = 999;
+    try { diskUncat = JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"))?.cashflow?.transactions?.filter(t => t.category === "Uncategorized")?.length || 0; } catch {}
+    if (incomingUncat > diskUncat) {
+      return res.json({ ok: true, skipped: true, reason: `incoming has ${incomingUncat} uncat > disk ${diskUncat}` });
+    }
     fs.writeFileSync(DATA_FILE, JSON.stringify(req.body, null, 2));
     res.json({ ok: true });
   } catch (err) {
