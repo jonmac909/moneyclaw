@@ -1485,12 +1485,13 @@ function NetWorthTab({ data, setData, settings, rates, theme, hide }) {
   const prevMonth = compareMonth || sortedMonths.find(m => m < activeMonth) || sortedMonths[0] || "";
   const prevSnap = snaps.find(sn => sn.month === prevMonth);
 
-  /* compute bucket totals in base currency */
+  /* compute bucket totals in base currency (CAD) — converts USD/GBP via rates */
   const computeBucketTotals = (snap) => {
     if (!snap) return { Opco: 0, Holdco: 0, Jon: 0, Jacqueline: 0, total: 0, totalHigh: 0, corpTotal: 0, personalTotal: 0 };
     const totals = { Opco: 0, Holdco: 0, Jon: 0, Jacqueline: 0 };
     snap.items.forEach(item => {
-      const val = Number(item.value || 0) * (item.isLiability ? -1 : 1);
+      const raw = Number(item.value || 0) * (item.isLiability ? -1 : 1);
+      const val = toBase(raw, item.currency || "CAD", rates);
       totals[item.bucket] = (totals[item.bucket] || 0) + val;
     });
     const corpTotal = totals.Opco + totals.Holdco;
