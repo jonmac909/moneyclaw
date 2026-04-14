@@ -7035,6 +7035,134 @@ function WatchlistTab({ data, setData, portData, settings, rates, theme }) {
   }).length;
   const oversold = allTech.filter(sym => technicals[sym]?.rsi14 < 30).length;
 
+  /* ── Composite Watchlist Market Take ────────────────────────────
+     Aggregates cross-ticker breadth (RSI, ATH distance, EMA cross,
+     today's change) and produces an opinionated 6-tier read:
+     Risk-on / Bullish bias / Mixed / Cautious / Risk-off / Panic tape.
+     ─────────────────────────────────────────────────────────────── */
+  const watchTake = useMemo(() => {
+    const syms = [...heldSymbols, ...watchOnly.map(t => t.symbol)];
+    const rows = syms.map(sym => {
+      const q = quotes[sym] || {};
+      const t = technicals[sym] || {};
+      const name = q.shortName || sym;
+      const rsi = t.rsi14, rsiPrev = t.rsi14Prev;
+      const rsiRising = rsi != null && rsiPrev != null && rsi > rsiPrev;
+      const rsiFalling = rsi != null && rsiPrev != null && rsi < rsiPrev;
+      const cross = (t.ema50 && t.ema200) ? (t.ema50 >= t.ema200 ? "golden" : "death") : null;
+      const pctDown = q.pctDown ?? null;
+      const chg = q.changePct ?? null;
+      const below200 = t.ema200 && q.price != null && q.price < t.ema200;
+      return { sym, name, price: q.price, rsi, rsiPrev, rsiRising, rsiFalling, cross, pctDown, chg, below200, q, t };
+    }).filter(r => r.price != null);
+    if (rows.length < 2) return null;
+
+    const n = rows.length;
+    const rsiVals = rows.map(r => r.rsi).filter(v => v != null);
+    const avgRsi = rsiVals.length ? rsiVals.reduce((a, b) => a + b, 0) / rsiVals.length : null;
+    const pctVals = rows.map(r => r.pctDown).filter(v => v != null);
+    const avgPctDown = pctVals.length ? pctVals.reduce((a, b) => a + b, 0) / pctVals.length : null;
+
+    const oversoldN = rows.filter(r => r.rsi != null && r.rsi < 30).length;
+    const overboughtN = rows.filter(r => r.rsi != null && r.rsi > 70).length;
+    const bouncingN = rows.filter(r => r.chg > 0 && r.rsiRising && (r.pctDown ?? 0) > 3).length;
+    const reversingN = rows.filter(r => r.rsi != null && r.rsi < 35 && r.rsiRising).length;
+    const fallingKnifeN = rows.filter(r => r.rsi != null && r.rsi < 30 && r.rsiFalling).length;
+    const below200N = rows.filter(r => r.below200).length;
+    const deathN = rows.filter(r => r.cross === "death").length;
+    const goldenN = rows.filter(r => r.cross === "golden").length;
+    const greenTodayN = rows.filter(r => r.chg != null && r.chg > 0).length;
+    const breadthGreen = n > 0 ? greenTodayN / n : 0;
+
+    // Build composite score from breadth (−8 … +8-ish)
+    let score = 0;
+    if (avgRsi != null) {
+      if (avgRsi > 60) score += 1;
+      else if (avgRsi > 50) score += 0;
+      else if (avgRsi < 35) score -= 1;
+    }
+    score += Math.min(2, reversingN);           // reversals = bullish
+    score -= Math.min(2, fallingKnifeN);        // knives = bearish
+    score += Math.min(2, bouncingN);            // bounce breadth = bullish
+    if (deathN >= n * 0.4) score -= 2;
+    else if (deathN >= n * 0.2) score -= 1;
+    if (goldenN >= n * 0.7) score += 1;
+    if (below200N >= n * 0.5) score -= 2;
+    else if (below200N >= n * 0.3) score -= 1;
+    if (overboughtN >= n * 0.4) score -= 1;     // froth
+    if (breadthGreen >= 0.8) score += 1;
+    else if (breadthGreen <= 0.2) score -= 1;
+
+    let label, color;
+    if (score >= 5)       { label = "Risk-on";      color = C.green; }
+    else if (score >= 2)  { label = "Bullish bias"; color = "#8ab864"; }
+    else if (score >= 0)  { label = "Mixed";        color = "#A3B4C8"; }
+    else if (score >= -2) { label = "Cautious";     color = "#f59e0b"; }
+    else if (score >= -4) { label = "Risk-off";     color = C.orange; }
+    else                  { label = "Panic tape";   color = C.red; }
+
+    // Top setup = bouncing/reversing with deepest drawdown
+    const setupRow = [...rows]
+      .filter(r => (r.chg > 0 && r.rsiRising) || (r.rsi != null && r.rsi < 35 && r.rsiRising))
+      .sort((a, b) => (b.pctDown || 0) - (a.pctDown || 0))[0];
+    // Top risk = falling knife / death cross below 200
+    const riskRow = [...rows]
+      .filter(r => (r.rsi != null && r.rsi < 30 && r.rsiFalling) || (r.cross === "death" && r.below200))
+      .sort((a, b) => (b.pctDown || 0) - (a.pctDown || 0))[0];
+
+    // Compose the Take — multi-line, opinionated
+    const lines = [];
+    // Headline sentence
+    const breadthPct = Math.round(breadthGreen * 100);
+    if (score >= 5) {
+      lines.push(`Your list is decisively bullish — avg RSI ${avgRsi?.toFixed(0)}, ${breadthPct}% green today${goldenN ? `, ${goldenN}/${n} on golden cross` : ""}. Momentum is broad.`);
+    } else if (score >= 2) {
+      lines.push(`Constructive across the board. Avg RSI ${avgRsi?.toFixed(0)}, ${bouncingN > 0 ? `${bouncingN} name${bouncingN > 1 ? "s" : ""} bouncing` : `${breadthPct}% green today`}. More buys than risks showing up.`);
+    } else if (score >= 0) {
+      lines.push(`Mixed signals. Avg RSI ${avgRsi?.toFixed(0)}, ${breadthPct}% green today, avg ${avgPctDown?.toFixed(1)}% off highs. No clear edge — stick to schedule.`);
+    } else if (score >= -2) {
+      lines.push(`Defensive tone. Avg RSI ${avgRsi?.toFixed(0)}${below200N ? `, ${below200N}/${n} below 200 EMA` : ""}. Momentum fading — hold dry powder.`);
+    } else if (score >= -4) {
+      lines.push(`Risk-off across your list. Avg ${avgPctDown?.toFixed(1)}% off highs, ${below200N}/${n} broken below 200 EMA${deathN ? `, ${deathN} on death cross` : ""}. Wait for stabilization.`);
+    } else {
+      lines.push(`Panic tape. Avg RSI ${avgRsi?.toFixed(0)}, ${fallingKnifeN} falling knives, ${deathN}/${n} death crosses. Historically the entries you thank yourself for — but only in tranches.`);
+    }
+
+    // Best setup (green line)
+    if (setupRow) {
+      const ds = displaySym(setupRow.sym);
+      if (setupRow.rsi < 35 && setupRow.rsiRising) {
+        lines.push(`**Best setup:** ${ds} — RSI ${setupRow.rsi.toFixed(0)} turning up from oversold, ${setupRow.pctDown?.toFixed(1)}% off ATH. Early reversal signal.`);
+      } else {
+        lines.push(`**Best setup:** ${ds} bouncing — +${setupRow.chg.toFixed(1)}% today, RSI ${setupRow.rsi?.toFixed(0)} rising, ${setupRow.pctDown?.toFixed(1)}% off ATH.`);
+      }
+    }
+
+    // Top risk (red line)
+    if (riskRow) {
+      const dr = displaySym(riskRow.sym);
+      if (riskRow.rsi != null && riskRow.rsi < 30 && riskRow.rsiFalling) {
+        lines.push(`**Avoid:** ${dr} — RSI ${riskRow.rsi.toFixed(0)} and still falling, ${riskRow.pctDown?.toFixed(1)}% off ATH. Knife hasn't stopped.`);
+      } else {
+        lines.push(`**Avoid:** ${dr} — death cross + below 200 EMA, ${riskRow.pctDown?.toFixed(1)}% off ATH. Wait for trend repair.`);
+      }
+    }
+
+    // Action line
+    if (score >= 5)      lines.push(`**Action:** Deploy on schedule. Don't wait for pullbacks that aren't coming.`);
+    else if (score >= 2) lines.push(`**Action:** Keep deploying. Favor the reversing names over the already-extended ones.`);
+    else if (score >= 0) lines.push(`**Action:** Base DCA only. Skip dip-adds until a clearer signal forms.`);
+    else if (score >= -2) lines.push(`**Action:** Trim DCA to 50%. Hold cash for deeper setups.`);
+    else if (score >= -4) lines.push(`**Action:** Pause dip-adds. Wait for RSI reversals to appear before stepping in harder.`);
+    else                 lines.push(`**Action:** Scale in carefully — small tranches into names showing RSI reversal, not the worst drawdowns.`);
+
+    return {
+      label, color, score,
+      stats: { n, avgRsi, avgPctDown, oversoldN, overboughtN, bouncingN, reversingN, fallingKnifeN, below200N, deathN, goldenN, breadthGreen },
+      lines,
+    };
+  }, [quotes, technicals, heldSymbols, watchOnly]);
+
   return (
     <div>
       {/* Header */}
@@ -7059,6 +7187,82 @@ function WatchlistTab({ data, setData, portData, settings, rates, theme }) {
           <StatCard label="RSI Oversold" value={oversold} sub="weekly RSI < 30" color={oversold > 0 ? C.orange : C.muted} C={C} />
         </div>
       </CollapsibleStats>
+
+      {/* ═══ MARKET TAKE — composite read across your list ═══ */}
+      {watchTake && (
+        <div style={{ ...s.card, marginBottom: 20, padding: 0, overflow: "hidden" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", background: watchTake.color + "12", borderBottom: `1px solid ${watchTake.color}25` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <Icon name="lightbulb" size={14} color={watchTake.color} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: watchTake.color, textTransform: "uppercase", letterSpacing: 0.5 }}>Market Take</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: watchTake.color, background: watchTake.color + "20", padding: "2px 10px", borderRadius: 4 }}>{watchTake.label}</span>
+            </div>
+            <span style={{ fontSize: 11, color: C.muted }}>{watchTake.stats.n} symbols · breadth {Math.round(watchTake.stats.breadthGreen * 100)}% green</span>
+          </div>
+          <div style={{ padding: "12px 16px" }}>
+            {/* Breadth chips */}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+              {watchTake.stats.avgRsi != null && (
+                <span style={{ fontSize: 11, fontWeight: 600, color: C.muted, background: C.card2, padding: "2px 8px", borderRadius: 4 }}>
+                  Avg RSI <span style={{ color: watchTake.stats.avgRsi < 35 ? C.orange : watchTake.stats.avgRsi > 70 ? C.red : C.text }}>{watchTake.stats.avgRsi.toFixed(0)}</span>
+                </span>
+              )}
+              {watchTake.stats.avgPctDown != null && (
+                <span style={{ fontSize: 11, fontWeight: 600, color: C.muted, background: C.card2, padding: "2px 8px", borderRadius: 4 }}>
+                  Avg <span style={{ color: C.text }}>-{watchTake.stats.avgPctDown.toFixed(1)}%</span> off ATH
+                </span>
+              )}
+              {watchTake.stats.reversingN > 0 && (
+                <span style={{ fontSize: 11, fontWeight: 600, color: C.green, background: C.green + "18", padding: "2px 8px", borderRadius: 4 }}>
+                  {watchTake.stats.reversingN} RSI reversing
+                </span>
+              )}
+              {watchTake.stats.bouncingN > 0 && (
+                <span style={{ fontSize: 11, fontWeight: 600, color: C.green, background: C.green + "18", padding: "2px 8px", borderRadius: 4 }}>
+                  {watchTake.stats.bouncingN} bouncing
+                </span>
+              )}
+              {watchTake.stats.fallingKnifeN > 0 && (
+                <span style={{ fontSize: 11, fontWeight: 600, color: C.red, background: C.red + "18", padding: "2px 8px", borderRadius: 4 }}>
+                  {watchTake.stats.fallingKnifeN} falling knives
+                </span>
+              )}
+              {watchTake.stats.below200N > 0 && (
+                <span style={{ fontSize: 11, fontWeight: 600, color: C.orange, background: C.orange + "18", padding: "2px 8px", borderRadius: 4 }}>
+                  {watchTake.stats.below200N}/{watchTake.stats.n} below 200 EMA
+                </span>
+              )}
+              {watchTake.stats.deathN > 0 && (
+                <span style={{ fontSize: 11, fontWeight: 600, color: C.red, background: C.red + "18", padding: "2px 8px", borderRadius: 4 }}>
+                  {watchTake.stats.deathN} death cross
+                </span>
+              )}
+              {watchTake.stats.goldenN > 0 && (
+                <span style={{ fontSize: 11, fontWeight: 600, color: C.green, background: C.green + "18", padding: "2px 8px", borderRadius: 4 }}>
+                  {watchTake.stats.goldenN} golden cross
+                </span>
+              )}
+              {watchTake.stats.oversoldN > 0 && (
+                <span style={{ fontSize: 11, fontWeight: 600, color: C.orange, background: C.orange + "18", padding: "2px 8px", borderRadius: 4 }}>
+                  {watchTake.stats.oversoldN} oversold
+                </span>
+              )}
+              {watchTake.stats.overboughtN > 0 && (
+                <span style={{ fontSize: 11, fontWeight: 600, color: C.muted, background: C.card2, padding: "2px 8px", borderRadius: 4 }}>
+                  {watchTake.stats.overboughtN} overbought
+                </span>
+              )}
+            </div>
+            {/* Multi-line take */}
+            <div style={{ color: C.text, fontSize: 13, lineHeight: 1.6 }}>
+              {watchTake.lines.map((line, i) => (
+                <div key={i} style={{ marginBottom: i < watchTake.lines.length - 1 ? 4 : 0 }}
+                  dangerouslySetInnerHTML={{ __html: line.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>') }} />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═══ ACTION FEED ═══ */}
       {actionFeed.length > 0 && (

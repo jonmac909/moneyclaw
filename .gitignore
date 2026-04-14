@@ -4,6 +4,16 @@ dist/
 *.env
 package-lock.json
 moneyclaw-data.json
+moneyclaw-data.json.bak-*
 screenlog.*
 data/chat.json
 /plaid-server/connections.json
+# Plaid billing / Tiingo runtime state (regenerated on the fly)
+/plaid-server/plaid-billing-state.json
+/plaid-server/plaid-usage.jsonl
+/plaid-server/tiingo-cache.json
+# Football calendar cache (regenerated)
+ff-calendar-cache.json
+# One-off backups / scratch
+MoneyClaw.jsx.broken-backup
+Plaid_Security_Questionnaire.docx
