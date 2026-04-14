@@ -7443,22 +7443,26 @@ export default function MoneyClaw() {
   };
   const saved = useMemo(() => loadSaved(), []);
 
-  // Load from server file on mount (async — patches in if browser had nothing)
+  // Load from server file on mount — prefer whichever source has more transactions
   const [serverLoaded, setServerLoaded] = useState(false);
   useEffect(() => {
-    if (saved) { setServerLoaded(true); return; } // browser already had data
     fetch("http://localhost:8484/api/load").then(r => r.json()).then(data => {
       if (data && data._mc) {
-        // Restore from server backup
-        if (data.nw) setNwData(data.nw);
-        if (data.portfolio) setPortData(data.portfolio);
-        if (data.cashflow) setCfData(data.cashflow);
-        if (data.settings) setSettings(data.settings);
-        if (data.rates) setRates(data.rates);
-        if (data.watchlist?.tickers?.length > 0) setWatchlistData(data.watchlist);
-        if (data.todos?.length > 0) setTodos(data.todos);
-        if (data.rules?.length > 0) setRules(data.rules);
-        console.log("[MoneyClaw] Restored from server backup");
+        const serverTxns = data.cashflow?.transactions?.length || 0;
+        const localTxns = saved?.cashflow?.transactions?.length || 0;
+        if (serverTxns > localTxns || !saved) {
+          if (data.nw) setNwData(data.nw);
+          if (data.portfolio) setPortData(data.portfolio);
+          if (data.cashflow) setCfData(data.cashflow);
+          if (data.settings) setSettings(data.settings);
+          if (data.rates) setRates(data.rates);
+          if (data.watchlist?.tickers?.length > 0) setWatchlistData(data.watchlist);
+          if (data.todos?.length > 0) setTodos(data.todos);
+          if (data.rules?.length > 0) setRules(data.rules);
+          console.log(`[MoneyClaw] Loaded from server (${serverTxns} txns > ${localTxns} local)`);
+        } else {
+          console.log(`[MoneyClaw] Kept local data (${localTxns} txns >= ${serverTxns} server)`);
+        }
       }
       setServerLoaded(true);
     }).catch(() => setServerLoaded(true));

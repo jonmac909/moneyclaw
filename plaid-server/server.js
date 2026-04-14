@@ -20,7 +20,7 @@ const { Configuration, PlaidApi, PlaidEnvironments, Products, CountryCode } = re
 
 const app = express();
 app.use(cors({ origin: true }));
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
 
 const PORT = process.env.PORT || 8484;
 
