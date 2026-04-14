@@ -4445,13 +4445,7 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
                         return `${net >= 0 ? "+" : "-"}${fmtFull(Math.abs(net))}`;
                       })(), hide)}
                     </td>
-                    <td colSpan={showSummary ? 1 : 3} style={{ padding: "8px 4px", fontSize: 10, color: C.muted }}>
-                      {(() => {
-                        const inc = sorted.filter(t => t.type === "income" && !isTransferTx(t)).reduce((s2, t) => s2 + toBase(t.amount, t.currency || "CAD", rates), 0);
-                        const exp = sorted.filter(t => t.type === "expense" && !isTransferTx(t)).reduce((s2, t) => s2 + toBase(t.amount, t.currency || "CAD", rates), 0);
-                        return `In: ${mask(fmtFull(inc), hide)} · Out: ${mask(fmtFull(exp), hide)}`;
-                      })()}
-                    </td>
+                    <td colSpan={showSummary ? 1 : 3} style={{ padding: "8px 4px" }}></td>
                   </tr>
                 </tfoot>
               </table>
