@@ -5149,7 +5149,7 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
                     for (const { conn, accounts } of allAcctData) {
                       accounts.forEach(a => {
                         if (skip.has(a.id)) return; // skip duplicates user chose to remove
-                        const dupeKey = Object.keys(updated).find(k => k !== a.id && updated[k].mask === a.mask && updated[k].institution === conn.institution && updated[k].subtype === a.subtype);
+                        const dupeKey = Object.keys(updated).find(k => k !== a.id && updated[k].mask === a.mask && updated[k].institution === conn.institution && (updated[k].subtype === a.subtype || updated[k].name === a.name));
                         if (dupeKey) { const old = updated[dupeKey]; delete updated[dupeKey]; updated[a.id] = { ...old, lastBalance: a.balance, lastSynced: new Date().toISOString() }; }
                         else if (!updated[a.id]) updated[a.id] = { name: a.name, institution: conn.institution, type: a.type, subtype: a.subtype, currency: a.currency, mask: a.mask, bucket: null, enabled: true, lastBalance: a.balance, lastSynced: new Date().toISOString() };
                         else { updated[a.id].lastBalance = a.balance; updated[a.id].lastSynced = new Date().toISOString(); }
