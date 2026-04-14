@@ -36,8 +36,11 @@ const config = new Configuration({
 });
 const plaid = new PlaidApi(config);
 
-/* In-memory store of access tokens — in production you'd persist these securely */
-const connections = []; // { id, institution, accessToken, itemId, products, connectedAt }
+/* Persist connections to disk so they survive server restarts */
+const CONN_FILE = path.join(__dirname, "connections.json");
+let connections = [];
+try { connections = JSON.parse(fs.readFileSync(CONN_FILE, "utf8")); } catch (_) {}
+const saveConnections = () => fs.writeFileSync(CONN_FILE, JSON.stringify(connections, null, 2));
 
 /* ─────────────────────────────────────────────
    1. CREATE LINK TOKEN
@@ -48,7 +51,8 @@ app.post("/api/plaid/create-link-token", async (req, res) => {
     const response = await plaid.linkTokenCreate({
       user: { client_user_id: "moneyclaw-user-1" },
       client_name: "MoneyClaw",
-      products: [Products.Transactions, Products.Investments],
+      products: [Products.Transactions],
+      optional_products: [Products.Investments],
       country_codes: [CountryCode.Ca, CountryCode.Us],
       language: "en",
     });
@@ -78,6 +82,7 @@ app.post("/api/plaid/exchange-token", async (req, res) => {
       connectedAt: new Date().toISOString(),
     };
     connections.push(conn);
+    saveConnections();
 
     console.log(`Connected: ${conn.institution} (${conn.id})`);
     res.json({ id: conn.id, institution: conn.institution, connectedAt: conn.connectedAt });
@@ -103,6 +108,16 @@ app.get("/api/plaid/accounts/:connId", async (req, res) => {
 
   try {
     const response = await plaid.accountsBalanceGet({ access_token: conn.accessToken });
+
+    /* For investment accounts, try to get total value from holdings */
+    let holdingsTotal = {};
+    try {
+      const hRes = await plaid.investmentsHoldingsGet({ access_token: conn.accessToken });
+      (hRes.data.holdings || []).forEach(h => {
+        holdingsTotal[h.account_id] = (holdingsTotal[h.account_id] || 0) + (h.institution_value || 0);
+      });
+    } catch (_) { /* investments not supported for this connection — ignore */ }
+
     const accounts = response.data.accounts.map(a => ({
       id: a.account_id,
       name: a.name,
@@ -110,7 +125,7 @@ app.get("/api/plaid/accounts/:connId", async (req, res) => {
       type: a.type,           // depository, investment, credit, loan
       subtype: a.subtype,     // checking, savings, brokerage, rrsp, tfsa, etc.
       currency: a.balances.iso_currency_code || "CAD",
-      balance: a.balances.current,
+      balance: a.balances.current ?? a.balances.available ?? holdingsTotal[a.account_id] ?? null,
       available: a.balances.available,
       limit: a.balances.limit,
       mask: a.mask,           // last 4 digits
@@ -279,6 +294,7 @@ app.delete("/api/plaid/connections/:connId", async (req, res) => {
   } catch (_) { /* best effort */ }
 
   const removed = connections.splice(idx, 1)[0];
+  saveConnections();
   console.log(`Disconnected: ${removed.institution}`);
   res.json({ success: true });
 });
@@ -390,6 +406,7 @@ app.get("/api/market/history", async (req, res) => {
     const ema50 = calcEMA(closes, 50);
     const ema200 = calcEMA(closes, 200);
     const rsi14 = calcRSI(weeklyCloses, 14);
+    const rsi14Prev = weeklyCloses.length > 15 ? calcRSI(weeklyCloses.slice(0, -1), 14) : null;
 
     // Generate signals
     const signals = [];
@@ -412,6 +429,7 @@ app.get("/api/market/history", async (req, res) => {
       ema50: ema50 ? +ema50.toFixed(2) : null,
       ema200: ema200 ? +ema200.toFixed(2) : null,
       rsi14: rsi14 ? +rsi14.toFixed(1) : null,
+      rsi14Prev: rsi14Prev ? +rsi14Prev.toFixed(1) : null,
       signals,
     });
   } catch (err) {
@@ -464,6 +482,8 @@ app.get("/api/plaid/health", (req, res) => {
     env: process.env.PLAID_ENV || "sandbox",
     connections: connections.length,
     hasCredentials: !!(process.env.PLAID_CLIENT_ID && process.env.PLAID_SECRET),
+    twilioConfigured: !!twilioClient,
+    alertPhoneConfigured: !!process.env.ALERT_PHONE_NUMBER,
   });
 });
 
@@ -543,6 +563,411 @@ app.get("/api/load", (req, res) => {
   } catch (err) {
     console.error("Load error:", err.message);
     res.json(null);
+  }
+});
+
+/* ═══════════════════════════════════════════
+   SMS ALERTS — Twilio integration
+   ═══════════════════════════════════════════ */
+
+let twilioClient = null;
+try {
+  if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+    const twilio = require("twilio");
+    twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+  }
+} catch (err) {
+  console.warn("Twilio not available:", err.message);
+}
+
+/* Alert cooldown tracking — prevent duplicate SMS within cooldown window */
+const alertCooldowns = {}; // key → timestamp of last send
+const COOLDOWN_MS = 4 * 60 * 60 * 1000; // 4 hours between same alert type
+
+function checkCooldown(key) {
+  const last = alertCooldowns[key] || 0;
+  if (Date.now() - last < COOLDOWN_MS) return false;
+  alertCooldowns[key] = Date.now();
+  return true;
+}
+
+async function sendSMS(message) {
+  if (!twilioClient || !process.env.ALERT_PHONE_NUMBER) return false;
+  try {
+    await twilioClient.messages.create({
+      body: message,
+      from: process.env.TWILIO_FROM_NUMBER,
+      to: process.env.ALERT_PHONE_NUMBER,
+    });
+    console.log("[SMS] Sent:", message.substring(0, 80) + "...");
+    return true;
+  } catch (err) {
+    console.error("[SMS] Send failed:", err.message);
+    return false;
+  }
+}
+
+/* Core alert checking engine — runs every 5 min during market hours */
+async function runAlertCheck() {
+  let data;
+  try {
+    if (!fs.existsSync(DATA_FILE)) return;
+    data = JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"));
+  } catch { return; }
+
+  const smsAlerts = data?.settings?.smsAlerts;
+  if (!smsAlerts || !smsAlerts.enabled) return;
+
+  /* Gather all symbols to check */
+  const symbols = new Set(["^VIX"]);
+  const holdings = data?.portfolio?.holdings || [];
+  holdings.forEach(h => { if (h.ticker && h.ticker !== "CASH") symbols.add(h.ticker); });
+  const watchTickers = data?.watchlist?.tickers || [];
+  watchTickers.forEach(t => { if (t.symbol) symbols.add(t.symbol); });
+  /* Include all drop alert symbols */
+  const dropAlerts = smsAlerts.dropAlerts || [];
+  dropAlerts.forEach(da => { if (da.symbol) symbols.add(da.symbol); });
+
+  if (symbols.size === 0) return;
+
+  /* Fetch quotes in batch */
+  let quotes = {};
+  try {
+    const results = await Promise.allSettled(
+      [...symbols].map(s => yahooFinance.quote(s))
+    );
+    results.forEach(r => {
+      if (r.status === "fulfilled" && r.value) {
+        const q = r.value;
+        const price = q.regularMarketPrice || 0;
+        const ath = q.fiftyTwoWeekHigh || price;
+        quotes[q.symbol] = {
+          price,
+          changePct: q.regularMarketChangePercent || 0,
+          previousClose: q.regularMarketPreviousClose || 0,
+          ath,
+          pctFromHigh: ath > 0 ? ((ath - price) / ath * 100) : 0,
+        };
+      }
+    });
+  } catch (err) {
+    console.error("[SMS] Quote fetch failed:", err.message);
+    return;
+  }
+
+  /* Fetch technicals for held + watched symbols (skip VIX) */
+  const techSymbols = [...symbols].filter(s => s !== "^VIX");
+  const technicals = {};
+  try {
+    const period1 = new Date();
+    period1.setFullYear(period1.getFullYear() - 1);
+    const techResults = await Promise.allSettled(
+      techSymbols.map(async (sym) => {
+        const result = await yahooFinance.chart(sym, { period1, interval: "1d" });
+        const closes = (result.quotes || []).map(q => q.close).filter(Boolean);
+        const weeklyCloses = [];
+        for (let i = 0; i < (result.quotes || []).length; i += 5) {
+          const ws = (result.quotes || []).slice(i, i + 5).filter(q => q.close);
+          if (ws.length > 0) weeklyCloses.push(ws[ws.length - 1].close);
+        }
+        return {
+          symbol: sym,
+          ema50: calcEMA(closes, 50),
+          ema200: calcEMA(closes, 200),
+          rsi14: calcRSI(weeklyCloses, 14),
+        };
+      })
+    );
+    techResults.forEach(r => {
+      if (r.status === "fulfilled" && r.value) {
+        technicals[r.value.symbol] = r.value;
+      }
+    });
+  } catch (err) {
+    console.error("[SMS] Technicals fetch failed:", err.message);
+  }
+
+  /* Check all alert conditions and collect triggered alerts */
+  const alerts = [];
+
+  /* 1. VIX thresholds */
+  const vix = quotes["^VIX"];
+  if (vix) {
+    if (smsAlerts.vixAbove && vix.price >= smsAlerts.vixAbove) {
+      if (checkCooldown("vix:above")) {
+        alerts.push(`⚠️ VIX at ${vix.price.toFixed(1)} (above ${smsAlerts.vixAbove} threshold)`);
+      }
+    }
+    if (smsAlerts.vixBelow && vix.price <= smsAlerts.vixBelow) {
+      if (checkCooldown("vix:below")) {
+        alerts.push(`VIX dropped to ${vix.price.toFixed(1)} (below ${smsAlerts.vixBelow} threshold)`);
+      }
+    }
+  }
+
+  /* 2. Daily % change alerts */
+  if (smsAlerts.dailyChangePct) {
+    const threshold = parseFloat(smsAlerts.dailyChangePct);
+    Object.entries(quotes).forEach(([sym, q]) => {
+      if (sym === "^VIX") return;
+      if (Math.abs(q.changePct) >= threshold) {
+        if (checkCooldown(`dailychg:${sym}`)) {
+          const dir = q.changePct > 0 ? "📈" : "📉";
+          alerts.push(`${dir} ${sym} moved ${q.changePct > 0 ? "+" : ""}${q.changePct.toFixed(1)}% today`);
+        }
+      }
+    });
+  }
+
+  /* 3. Death cross / golden cross */
+  if (smsAlerts.deathCross || smsAlerts.goldenCross) {
+    Object.entries(technicals).forEach(([sym, t]) => {
+      if (t.ema50 === null || t.ema200 === null) return;
+      if (smsAlerts.deathCross && t.ema50 < t.ema200) {
+        if (checkCooldown(`deathcross:${sym}`)) {
+          alerts.push(`💀 ${sym} death cross — 50 EMA below 200 EMA. Bearish signal.`);
+        }
+      }
+      if (smsAlerts.goldenCross && t.ema50 > t.ema200) {
+        if (checkCooldown(`goldencross:${sym}`)) {
+          alerts.push(`✨ ${sym} golden cross — 50 EMA above 200 EMA. Bullish signal.`);
+        }
+      }
+    });
+  }
+
+  /* 4. RSI alerts */
+  Object.entries(technicals).forEach(([sym, t]) => {
+    if (t.rsi14 === null) return;
+    if (smsAlerts.rsiOversold && t.rsi14 < 30) {
+      if (checkCooldown(`rsi:oversold:${sym}`)) {
+        alerts.push(`📊 ${sym} RSI oversold at ${t.rsi14.toFixed(0)} — potential buying opportunity`);
+      }
+    }
+    if (smsAlerts.rsiOverbought && t.rsi14 > 70) {
+      if (checkCooldown(`rsi:overbought:${sym}`)) {
+        alerts.push(`📊 ${sym} RSI overbought at ${t.rsi14.toFixed(0)} — potential sell signal`);
+      }
+    }
+  });
+
+  /* 5. Portfolio price alerts (alertAbove/alertBelow/alertPctUp/alertPctDown) */
+  if (smsAlerts.portfolioAlerts) {
+    holdings.forEach(h => {
+      if (!h.ticker || h.ticker === "CASH") return;
+      const q = quotes[h.ticker];
+      if (!q) return;
+      if (h.alertAbove && q.price >= h.alertAbove) {
+        if (checkCooldown(`price:${h.ticker}:above`)) {
+          alerts.push(`🎯 ${h.ticker} hit $${q.price.toFixed(2)} (above your $${h.alertAbove} target)`);
+        }
+      }
+      if (h.alertBelow && q.price <= h.alertBelow) {
+        if (checkCooldown(`price:${h.ticker}:below`)) {
+          alerts.push(`🎯 ${h.ticker} dropped to $${q.price.toFixed(2)} (below your $${h.alertBelow} target)`);
+        }
+      }
+      if (h.alertPctUp && h.avgCost > 0) {
+        const gainPct = ((q.price - h.avgCost) / h.avgCost) * 100;
+        if (gainPct >= h.alertPctUp) {
+          if (checkCooldown(`pctgain:${h.ticker}:up`)) {
+            alerts.push(`🎯 ${h.ticker} up ${gainPct.toFixed(1)}% from your cost (above ${h.alertPctUp}% threshold)`);
+          }
+        }
+      }
+      if (h.alertPctDown && h.avgCost > 0) {
+        const lossPct = ((h.avgCost - q.price) / h.avgCost) * 100;
+        if (lossPct >= h.alertPctDown) {
+          if (checkCooldown(`pctgain:${h.ticker}:down`)) {
+            alerts.push(`🎯 ${h.ticker} down ${lossPct.toFixed(1)}% from your cost (below -${h.alertPctDown}% threshold)`);
+          }
+        }
+      }
+    });
+  }
+
+  /* 6. Watchlist buy targets */
+  if (smsAlerts.buyTargets) {
+    const buyTargets = data?.watchlist?.buyTargets || {};
+    Object.entries(buyTargets).forEach(([sym, target]) => {
+      const q = quotes[sym];
+      if (!q || !target.triggerPct) return;
+      const pctDown = q.previousClose > 0 ? ((q.previousClose - q.price) / q.previousClose * 100) : 0;
+      if (pctDown >= target.triggerPct) {
+        if (checkCooldown(`buytarget:${sym}`)) {
+          alerts.push(`🛒 ${sym} buy target hit — down ${pctDown.toFixed(1)}% (trigger: ${target.triggerPct}%)`);
+        }
+      }
+    });
+  }
+
+  /* 7. Tiered drop-from-high alerts */
+  dropAlerts.forEach(da => {
+    if (!da.symbol || !da.tiers || da.tiers.length === 0) return;
+    const q = quotes[da.symbol];
+    if (!q || q.pctFromHigh === undefined) return;
+    const pctDown = q.pctFromHigh;
+    // Find the highest tier that's been breached
+    const sortedTiers = [...da.tiers].sort((a, b) => b - a); // highest first
+    for (const tier of sortedTiers) {
+      if (pctDown >= tier) {
+        if (checkCooldown(`drop:${da.symbol}:${tier}`)) {
+          alerts.push(`📉 ${da.symbol} is ${pctDown.toFixed(1)}% off its 52-week high ($${q.ath.toFixed(2)} → $${q.price.toFixed(2)}) — crossed ${tier}% drop threshold`);
+        }
+        break; // only alert on the highest breached tier
+      }
+    }
+  });
+
+  /* Send grouped SMS if any alerts triggered */
+  if (alerts.length > 0) {
+    const msg = `🦀 MoneyClaw Alerts:\n\n${alerts.join("\n\n")}`;
+    // Twilio SMS limit is ~1600 chars; truncate if needed
+    await sendSMS(msg.length > 1550 ? msg.substring(0, 1550) + "\n\n..." : msg);
+  }
+}
+
+/* Schedule alert checks every 5 minutes during market hours */
+setInterval(() => {
+  const now = new Date();
+  const etStr = now.toLocaleString("en-US", { timeZone: "America/New_York" });
+  const etDate = new Date(etStr);
+  const h = etDate.getHours();
+  const m = etDate.getMinutes();
+  const mins = h * 60 + m;
+  const day = etDate.getDay(); // 0=Sun, 6=Sat
+  const isWeekend = day === 0 || day === 6;
+  // Check 9:25 AM - 4:05 PM ET (slightly wider than market hours for pre/post signals)
+  const isMarketHours = !isWeekend && mins >= 9 * 60 + 25 && mins <= 16 * 60 + 5;
+  if (isMarketHours) {
+    runAlertCheck().catch(err => console.error("[SMS] Alert check error:", err.message));
+  }
+}, 5 * 60 * 1000);
+
+/* Alert API endpoints */
+app.post("/api/alerts/test", async (req, res) => {
+  if (!twilioClient) return res.status(400).json({ error: "Twilio not configured — add TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN to .env" });
+  if (!process.env.ALERT_PHONE_NUMBER) return res.status(400).json({ error: "No ALERT_PHONE_NUMBER in .env" });
+  try {
+    await sendSMS("🦀 MoneyClaw test alert — SMS is working!");
+    res.json({ ok: true, message: "Test SMS sent!" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/alerts/status", (req, res) => {
+  const phone = process.env.ALERT_PHONE_NUMBER || "";
+  res.json({
+    twilioConfigured: !!twilioClient,
+    phoneConfigured: !!phone,
+    phoneLast4: phone ? "•••" + phone.slice(-4) : null,
+    cooldowns: Object.entries(alertCooldowns).map(([key, ts]) => ({
+      key, lastSent: new Date(ts).toISOString(),
+      cooldownEnds: new Date(ts + COOLDOWN_MS).toISOString(),
+    })),
+  });
+});
+
+app.post("/api/alerts/clear-cooldowns", (req, res) => {
+  Object.keys(alertCooldowns).forEach(k => delete alertCooldowns[k]);
+  res.json({ ok: true, message: "All cooldowns cleared" });
+});
+
+/* ─────────────────────────────────────────────
+   AI-POWERED TRANSACTION CATEGORIZER
+   Uses Claude CLI (your existing subscription — no extra API costs)
+   to intelligently categorize transactions like a human bookkeeper.
+   Requires `claude` CLI to be installed and authenticated.
+   ───────────────────────────────────────────── */
+const { spawn } = require("child_process");
+
+function claudeCLI(prompt, timeoutMs = 60000) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn("claude", ["--print"], { stdio: ["pipe", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    const timer = setTimeout(() => { proc.kill(); reject(new Error("Claude CLI timed out")); }, timeoutMs);
+    proc.stdout.on("data", d => { stdout += d; });
+    proc.stderr.on("data", d => { stderr += d; });
+    proc.on("close", code => {
+      clearTimeout(timer);
+      if (code === 0) resolve(stdout.trim());
+      else reject(new Error(stderr || `claude exited with code ${code}`));
+    });
+    proc.on("error", err => {
+      clearTimeout(timer);
+      reject(new Error(`Claude CLI not found: ${err.message}. Install with: npm install -g @anthropic-ai/claude-code`));
+    });
+    proc.stdin.write(prompt);
+    proc.stdin.end();
+  });
+}
+
+app.post("/api/categorize", async (req, res) => {
+  const { transactions, categories } = req.body;
+  if (!transactions || !transactions.length) {
+    return res.json({ suggestions: [] });
+  }
+
+  /* Build the prompt with all available categories per bucket */
+  const txList = transactions.slice(0, 80).map((t, i) =>
+    `${i + 1}. "${t.description}" | ${t.type} | $${t.amount} ${t.currency || "CAD"} | Bucket: ${t.bucket}`
+  ).join("\n");
+
+  const catList = Object.entries(categories || {}).map(([bucket, cats]) =>
+    `${bucket}: ${cats.join(", ")}`
+  ).join("\n");
+
+  const prompt = `You are a bookkeeper categorizing transactions for a Canadian business.
+
+CATEGORIES BY BUCKET:
+${catList}
+
+RULES:
+- "Moving Money" categories are for transfers between own accounts (FX conversions, bank transfers, CC payments, scheduled payments). These are NOT expenses.
+- E-transfers SENT = Moving Money. E-transfers RECEIVED = Other Income.
+- "PAYMENT - THANK YOU" or credit card payments = Moving Money CC Payments.
+- Foreign exchange / currency conversion = Moving Money (not Bank Fees).
+- Credits/refunds from hotels, airlines, merchants = the ORIGINAL expense category (e.g. hotel refund = "Business Travel", not income).
+- Truncated merchant names are common (e.g., "Dashla Ne" = Dashlane password manager = Business Subscription/SaaS).
+- Streaming services (Netflix, Spotify, Disney+, SiriusXM, etc.) = subscriptions, not entertainment/meals.
+- Costco, Walmart, grocery stores = Groceries (not Shopping).
+- Cabs/rideshare during travel = Business Travel.
+- ICBC = car insurance = Business Auto.
+- If you genuinely cannot identify the merchant, use "Business Misc" for business or "Personal Misc" for personal.
+
+TRANSACTIONS TO CATEGORIZE:
+${txList}
+
+Respond with ONLY a JSON array of objects, one per transaction:
+[{"index": 1, "category": "the category"}, ...]
+No explanation, just the JSON array.`;
+
+  try {
+    console.log(`[AI Categorize] Processing ${transactions.length} transactions via Claude CLI...`);
+    const result = await claudeCLI(prompt);
+
+    /* Parse the JSON response — handle markdown code blocks */
+    let parsed;
+    try {
+      const cleaned = result.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
+      parsed = JSON.parse(cleaned);
+    } catch (e) {
+      console.error("Failed to parse Claude CLI response:", result.slice(0, 500));
+      return res.status(500).json({ error: "Failed to parse AI response", raw: result.slice(0, 500) });
+    }
+
+    const suggestions = parsed.map(item => ({
+      index: item.index,
+      category: item.category,
+    }));
+
+    console.log(`[AI Categorize] Done — ${suggestions.length} suggestions`);
+    res.json({ suggestions });
+  } catch (err) {
+    console.error("Categorize error:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 

@@ -10,20 +10,20 @@ import {
 const themes = {
   dark: {
     bg: "#09090b", bg2: "#0f0f12", card: "#151518", card2: "#1c1c21", border: "#27272a",
-    accent: "#e05a47", accent2: "#71717a", green: "#2dd4bf", red: "#f87171",
-    orange: "#fbbf24", pink: "#f472b6", yellow: "#fbbf24", cyan: "#67e8f9",
+    accent: "#e05a47", accent2: "#71717a", green: "#A3B4C8", red: "#f87171",
+    orange: "#CC6D3D", pink: "#d4927a", yellow: "#CC6D3D", cyan: "#6b9fc4",
     text: "#e4e4e7", muted: "#71717a", white: "#fafafa",
-    gold: "#d4a843",
+    gold: "#CC6D3D",
   },
   light: {
     bg: "#f4f4f5", bg2: "#ffffff", card: "#ffffff", card2: "#e4e4e7", border: "#d4d4d8",
-    accent: "#c9493a", accent2: "#3f3f46", green: "#0d9488", red: "#dc2626",
-    orange: "#ea580c", pink: "#db2777", yellow: "#ca8a04", cyan: "#0891b2",
+    accent: "#c9493a", accent2: "#3f3f46", green: "#4a7a9a", red: "#dc2626",
+    orange: "#B74803", pink: "#b87a5f", yellow: "#B74803", cyan: "#4a7a9a",
     text: "#09090b", muted: "#52525b", white: "#09090b",
-    gold: "#b8941f",
+    gold: "#B74803",
   },
 };
-const PIE_COLORS = ["#a1a1aa","#2dd4bf","#f87171","#fbbf24","#67e8f9","#f472b6","#a78bfa","#e05a47","#fb923c","#71717a"];
+const PIE_COLORS = ["#e05a47","#CC6D3D","#A3B4C8","#022E51","#B74803","#71717a","#6b9fc4","#d4927a","#52525b","#1a4a6e"];
 
 /* ═══════════════════════════════════════════════════════════
    HELPERS
@@ -44,7 +44,7 @@ const fmtFull = (n, cur = "CAD") => {
 const pct = (n) => (n * 100).toFixed(1) + "%";
 const mask = (str, hidden) => hidden ? "•••••" : str;
 const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const toMonthKey = (d) => { const dt = new Date(d); return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}`; };
+const toMonthKey = (d) => { const s = String(d); if (s.length >= 7 && s[4] === "-") return s.slice(0, 7); const dt = new Date(d); return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}`; };
 const monthLabel = (k) => { if (!k) return ""; const [y,m] = k.split("-"); return `${months[+m-1]} ${y}`; };
 
 /* CSV parser */
@@ -132,31 +132,40 @@ function useUndoRedo(initial) {
    DEFAULT DATA & CATEGORIES
    ═══════════════════════════════════════════════════════════ */
 const BUCKETS = ["Opco", "Holdco", "Jon", "Jacqueline"];
-const BUCKET_COLORS = { Opco: "#38bdf8", Holdco: "#818cf8", Jon: "#34d399", Jacqueline: "#f472b6" };
+const BUCKET_COLORS = { Opco: "#e05a47", Holdco: "#CC6D3D", Jon: "#A3B4C8", Jacqueline: "#6b9fc4" };
 
 /* Expense categories — grouped by parent for hierarchy display */
 const EXPENSE_CATS = {
   Opco: {
-    "Ecomm House Variable Expenses": ["Business Subscription/SaaS", "Amazon Business Purchases", "Courses", "Business Purchases", "Business Travel", "Bank Fees", "Business Misc", "Ads"],
-    "Ecomm House Shared Expenses": ["Car (Gas/Parking) Business"],
+    "Ecomm House Variable Expenses": ["Business Subscription/SaaS", "Business Bills", "Business Purchases", "Business Education", "Business Travel", "Business Meals & Entertainment", "Business Advertising", "Business Staff", "Business Misc", "Bank Fees"],
+    "Ecomm House Shared - Fixed": ["Business Auto"],
   },
   Holdco: {
-    "Holdco Expenses": ["Bank Fees"],
+    "Holdco Expenses": ["Bank Fees", "Business Staff", "Business Admin & Professional", "Business Misc"],
   },
   Jon: {
-    "Personal": ["Entertainment", "Personal Care", "Shopping", "Personal Misc"],
-    "House": ["House Fortis"],
-    "Food": ["Coffee Shops", "Groceries", "Food Delivery"],
+    "Personal": ["Entertainment", "TV Streaming", "Personal Care", "Shopping", "Personal Misc"],
+    "House": ["Mortgage", "House Maintenance", "House Fortis", "House Misc"],
+    "Food": ["Alcohol, Bars", "Coffee Shops", "Groceries", "Food Delivery", "Restaurants"],
     "Car": ["Car Maintenance", "Gas/Transportation"],
-    "Travel": ["Hotel/Accommodation"],
+    "Travel": ["Hotel/Accommodation", "Flights", "Car Rental", "Travel Activities", "Travel Misc"],
   },
   Jacqueline: {
-    "Personal": ["Entertainment", "Personal Care", "Shopping", "Personal Misc"],
-    "House": ["House Fortis"],
-    "Food": ["Coffee Shops", "Groceries", "Food Delivery"],
+    "Personal": ["Entertainment", "TV Streaming", "Personal Care", "Shopping", "Personal Misc"],
+    "House": ["Mortgage", "House Maintenance", "House Fortis", "House Misc"],
+    "Food": ["Alcohol, Bars", "Coffee Shops", "Groceries", "Food Delivery", "Restaurants"],
     "Car": ["Car Maintenance", "Gas/Transportation"],
-    "Travel": ["Hotel/Accommodation"],
+    "Travel": ["Hotel/Accommodation", "Flights", "Car Rental", "Travel Activities", "Travel Misc"],
   },
+};
+/* Migrate old category names → new names */
+const CAT_RENAME = {
+  "Amazon Business Purchases": "Business Purchases",
+  "Courses": "Business Education",
+  "Ads": "Business Advertising",
+  "Car (Gas/Parking) Business": "Business Auto",
+  "Staff": "Business Staff",
+  "Admin & Professional Services": "Business Admin & Professional",
 };
 /* Flat list per bucket for dropdowns */
 const DEFAULT_TAX_CATS = Object.fromEntries(
@@ -165,7 +174,7 @@ const DEFAULT_TAX_CATS = Object.fromEntries(
 /* Transfer categories — excluded from totals */
 const TRANSFER_CATS = {
   Opco: ["Moving Money CC Payments", "Moving Money Business"],
-  Holdco: ["Hold Co Dividends", "Dividends from Opco"],
+  Holdco: ["Hold Co Dividends", "Dividends from Opco", "Moving Money Holdco"],
   Jon: ["Moving Money CC Payments", "Moving Money Personal", "Dividends from Holdco"],
   Jacqueline: ["Moving Money CC Payments", "Moving Money Personal", "Dividends from Holdco"],
 };
@@ -173,8 +182,6 @@ const TRANSFER_CATS = {
 const INCOME_GROUPS = {
   Opco: { "Ecomm House Income": ["Sponsor Income", "Contracts", "Affiliate", "Course Income", "Commissions", "Skool", "Other Income"] },
   Holdco: { "Holdco Income": ["Interest Income", "Investment Income", "GIC Income", "Other Income"] },
-  Jon: { "Jon Income": ["Interest", "Other Income"] },
-  Jacqueline: { "Jacqueline Income": ["Interest", "Other Income"] },
 };
 const INCOME_CATS = Object.fromEntries(
   Object.entries(INCOME_GROUPS).map(([bucket, groups]) => [bucket, Object.values(groups).flat()])
@@ -182,20 +189,20 @@ const INCOME_CATS = Object.fromEntries(
 
 /* Plaid category → MoneyClaw category fallback map (tier 2 of auto-categorization) */
 const PLAID_CATEGORY_MAP = {
-  "FOOD_AND_DRINK": { Jon: "Groceries", Jacqueline: "Groceries", Opco: "Business Misc" },
-  "FOOD_AND_DRINK_COFFEE": { Jon: "Coffee Shops", Jacqueline: "Coffee Shops" },
+  "FOOD_AND_DRINK": { Jon: "Groceries", Jacqueline: "Groceries", Opco: "Business Meals & Entertainment" },
+  "FOOD_AND_DRINK_COFFEE": { Jon: "Coffee Shops", Jacqueline: "Coffee Shops", Opco: "Business Meals & Entertainment" },
   "FOOD_AND_DRINK_GROCERIES": { Jon: "Groceries", Jacqueline: "Groceries" },
-  "FOOD_AND_DRINK_RESTAURANT": { Jon: "Food Delivery", Jacqueline: "Food Delivery" },
-  "TRANSPORTATION": { Jon: "Gas/Transportation", Jacqueline: "Gas/Transportation", Opco: "Car (Gas/Parking) Business" },
-  "ENTERTAINMENT": { Jon: "Entertainment", Jacqueline: "Entertainment" },
+  "FOOD_AND_DRINK_RESTAURANT": { Jon: "Food Delivery", Jacqueline: "Food Delivery", Opco: "Business Meals & Entertainment" },
+  "TRANSPORTATION": { Jon: "Gas/Transportation", Jacqueline: "Gas/Transportation", Opco: "Business Auto" },
+  "ENTERTAINMENT": { Jon: "Entertainment", Jacqueline: "Entertainment", Opco: "Business Subscription/SaaS" },
   "GENERAL_MERCHANDISE": { Jon: "Shopping", Jacqueline: "Shopping", Opco: "Business Purchases" },
   "GENERAL_SERVICES": { Opco: "Business Misc", Jon: "Personal Misc", Jacqueline: "Personal Misc" },
   "PERSONAL_CARE": { Jon: "Personal Care", Jacqueline: "Personal Care" },
   "RENT_AND_UTILITIES": { Jon: "House Fortis", Jacqueline: "House Fortis" },
   "TRAVEL": { Jon: "Hotel/Accommodation", Jacqueline: "Hotel/Accommodation", Opco: "Business Travel" },
   "LOAN_PAYMENTS": { Jon: "Moving Money CC Payments", Jacqueline: "Moving Money CC Payments" },
-  "TRANSFER_IN": { Opco: "Other Income", Jon: "Other Income", Jacqueline: "Other Income" },
-  "TRANSFER_OUT": { Jon: "Moving Money Personal", Jacqueline: "Moving Money Personal", Opco: "Moving Money Business" },
+  "TRANSFER_IN": { Opco: "Other Income", Holdco: "Other Income", Jon: "Other Income", Jacqueline: "Other Income" },
+  "TRANSFER_OUT": { Jon: "Moving Money Personal", Jacqueline: "Moving Money Personal", Opco: "Moving Money Business", Holdco: "Moving Money Holdco" },
   "INCOME": { Opco: "Other Income", Holdco: "Other Income", Jon: "Other Income", Jacqueline: "Other Income" },
   "BANK_FEES": { Opco: "Bank Fees", Holdco: "Bank Fees", Jon: "Personal Misc", Jacqueline: "Personal Misc" },
   "HOME_IMPROVEMENT": { Jon: "House Fortis", Jacqueline: "House Fortis" },
@@ -221,6 +228,29 @@ const DEFAULT_SETTINGS = {
   /* High-range overrides for net worth range */
   highTaxRate: 20,
   autoHideMinutes: 1,
+  smsAlerts: {
+    enabled: false,
+    dailyChangePct: 5,
+    vixAbove: 30,
+    vixBelow: null,
+    portfolioAlerts: true,
+    deathCross: true,
+    goldenCross: true,
+    rsiOversold: true,
+    rsiOverbought: false,
+    buyTargets: true,
+    dropAlerts: [
+      { symbol: "VOO", tiers: [5, 7.5, 10, 12.5, 15, 17.5, 20] },
+      { symbol: "QQQ", tiers: [5, 7.5, 10, 12.5, 15, 17.5, 20] },
+      { symbol: "AAPL", tiers: [5, 10, 15, 20] },
+      { symbol: "MSFT", tiers: [5, 10, 15, 20] },
+      { symbol: "GOOGL", tiers: [5, 10, 15, 20] },
+      { symbol: "AMZN", tiers: [5, 10, 15, 20] },
+      { symbol: "META", tiers: [5, 10, 15, 20] },
+      { symbol: "NVDA", tiers: [5, 10, 15, 20] },
+      { symbol: "BTC-USD", tiers: [10, 20, 30] },
+    ],
+  },
 };
 
 /* ── Demo Data ── */
@@ -337,39 +367,10 @@ function makeDemoData() {
     ],
   };
   const cashflow = {
-    transactions: [
-      { id: uid(), date: "2026-03-01", bucket: "Opco", type: "income", category: "Revenue - Sales", description: "March e-commerce revenue", amount: 45000, currency: "CAD" },
-      { id: uid(), date: "2026-03-05", bucket: "Opco", type: "expense", category: "Software & Subscriptions", description: "Shopify", amount: 399, currency: "CAD" },
-      { id: uid(), date: "2026-03-10", bucket: "Opco", type: "expense", category: "Advertising & Promotion", description: "Meta Ads", amount: 3200, currency: "CAD" },
-      { id: uid(), date: "2026-03-15", bucket: "Holdco", type: "income", category: "Dividends from Opco", description: "Q1 dividend from Opco", amount: 25000, currency: "CAD" },
-      { id: uid(), date: "2026-03-15", bucket: "Opco", type: "expense", category: "Other Business Expense", description: "Dividend to Holdco", amount: 25000, currency: "CAD", isTransfer: true, transferMatch: "Holdco" },
-      { id: uid(), date: "2026-03-20", bucket: "Jacqueline", type: "income", category: "Dividends from Holdco", description: "Personal dividend", amount: 8000, currency: "CAD" },
-      { id: uid(), date: "2026-03-20", bucket: "Holdco", type: "expense", category: "Other Holdco Expense", description: "Dividend to Jacqueline", amount: 8000, currency: "CAD", isTransfer: true, transferMatch: "Jacqueline" },
-      { id: uid(), date: "2026-03-03", bucket: "Jacqueline", type: "expense", category: "Food & Groceries", description: "Save-On-Foods", amount: 187.50, currency: "CAD" },
-      { id: uid(), date: "2026-03-07", bucket: "Jacqueline", type: "expense", category: "Subscriptions", description: "Netflix", amount: 22.99, currency: "CAD" },
-      { id: uid(), date: "2026-03-12", bucket: "Jon", type: "expense", category: "Transportation", description: "Gas", amount: 95.00, currency: "CAD" },
-      { id: uid(), date: "2026-03-14", bucket: "Jon", type: "expense", category: "Dining Out", description: "Restaurant", amount: 120.00, currency: "CAD" },
-      { id: uid(), date: "2026-03-01", bucket: "Jon", type: "expense", category: "Bills", description: "BC Hydro", amount: 142.00, currency: "CAD" },
-      { id: uid(), date: "2026-03-01", bucket: "Jacqueline", type: "expense", category: "Housing", description: "Mortgage payment", amount: 3200.00, currency: "CAD" },
-      { id: uid(), date: "2026-02-01", bucket: "Opco", type: "income", category: "Revenue - Sales", description: "February e-commerce revenue", amount: 38000, currency: "CAD" },
-      { id: uid(), date: "2026-02-10", bucket: "Opco", type: "expense", category: "Advertising & Promotion", description: "Google Ads", amount: 2800, currency: "CAD" },
-      { id: uid(), date: "2026-02-15", bucket: "Jacqueline", type: "expense", category: "One-Time Purchase", description: "New laptop", amount: 2199.00, currency: "CAD" },
-    ],
-    budgets: [
-      { id: uid(), bucket: "Jacqueline", category: "Food & Groceries", monthlyLimit: 800, rollover: true },
-      { id: uid(), bucket: "Jacqueline", category: "Dining Out", monthlyLimit: 400, rollover: false },
-      { id: uid(), bucket: "Jacqueline", category: "Subscriptions", monthlyLimit: 200, rollover: false },
-      { id: uid(), bucket: "Jon", category: "Food & Groceries", monthlyLimit: 600, rollover: true },
-      { id: uid(), bucket: "Jon", category: "Dining Out", monthlyLimit: 500, rollover: false },
-      { id: uid(), bucket: "Opco", category: "Advertising & Promotion", monthlyLimit: 5000, rollover: false },
-    ],
-    recurring: [
-      { id: uid(), bucket: "Jacqueline", type: "expense", category: "Subscriptions", description: "Netflix", amount: 22.99, frequency: "monthly", currency: "CAD" },
-      { id: uid(), bucket: "Jacqueline", type: "expense", category: "Housing", description: "Mortgage payment", amount: 3200, frequency: "monthly", currency: "CAD" },
-      { id: uid(), bucket: "Jon", type: "expense", category: "Bills", description: "BC Hydro", amount: 142, frequency: "monthly", currency: "CAD" },
-      { id: uid(), bucket: "Opco", type: "expense", category: "Software & Subscriptions", description: "Shopify", amount: 399, frequency: "monthly", currency: "CAD" },
-    ],
-    catRules: { "save-on-foods": { Jon: "Food & Groceries", Jacqueline: "Food & Groceries" }, "netflix": { Jon: "Subscriptions", Jacqueline: "Subscriptions" }, "shopify": { Opco: "Software & Subscriptions" }, "bc hydro": { Jon: "Bills", Jacqueline: "Bills" } },
+    transactions: [],
+    budgets: [],
+    recurring: [],
+    catRules: {},
     bankAccounts: {},
   };
   return { nw, portfolio, cashflow };
@@ -405,7 +406,7 @@ function StatCard({ label, value, sub, color, C }) {
   return (
     <div style={{ background: C.card, borderRadius: 5, padding: "10px 12px", border: `1px solid ${C.border}`, textAlign: "center", flex: 1, minWidth: 0, overflow: "hidden" }}>
       <div style={{ color: C.muted, fontSize: 9, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, whiteSpace: "nowrap" }}>{label}</div>
-      <div style={{ fontSize: 16, fontWeight: 700, color: color || C.white, whiteSpace: "nowrap", textAlign: "center" }}>{value}</div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: color || C.white, whiteSpace: "nowrap", textAlign: "center", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
       {sub && <div style={{ color: C.muted, fontSize: 9, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</div>}
     </div>
   );
@@ -499,9 +500,12 @@ function inferNwItemType(item) {
   if (item.type) return item.type;
   if (item.isLiability) return "Liability";
   const n = (item.name || "").toLowerCase();
+  if (/td stocks/i.test(n)) return "ETF";
   if (/stock|broker|direct investing|td bank usd/i.test(n)) return "Stock";
   if (/bond/i.test(n)) return "Bond";
-  if (/60.40|rrsp|fidelity|clearpath|safe money/i.test(n)) return "Fund";
+  if (/cad rrsp/i.test(n)) return "ETF";
+  if (/safe money/i.test(n)) return "Cash";
+  if (/60.40|fidelity|clearpath/i.test(n)) return "Fund";
   if (/crypto/i.test(n)) return "Crypto";
   if (/silver|gold|numismatic|coin/i.test(n)) return "Precious Metal";
   if (/house/i.test(n)) return "Real Estate";
@@ -532,12 +536,14 @@ function fromCAD(cadValue, toCurrency, rates) {
 /* ═══════════════════════════════════════════════════════════
    TAB 0 — OVERVIEW
    ═══════════════════════════════════════════════════════════ */
-function OverviewTab({ portData, watchlistData, todos, setTodos, rules, settings, theme }) {
+function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todos, setTodos, rules, settings, theme, hide }) {
   const C = themes[theme]; const s = S(theme);
 
   /* ── Market data (fetch on mount) ── */
   const watchTickers = watchlistData?.tickers || [];
-  const allSymbols = watchTickers.map(t => t.symbol);
+  const MAG7 = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA"];
+  const INDEXES = ["QQQ", "VOO"];
+  const allSymbols = [...new Set([...watchTickers.map(t => t.symbol), ...MAG7, ...INDEXES])];
   const [quotes, setQuotes] = useState({});
   const [technicals, setTechnicals] = useState({});
   const [news, setNews] = useState([]);
@@ -593,7 +599,7 @@ function OverviewTab({ portData, watchlistData, todos, setTodos, rules, settings
       if (syms.length === 0) return;
       setLoading(true);
       Promise.all([
-        fetch(`${PLAID_SERVER}/api/market/quote?symbols=${[...syms, "^VIX", "DIA", "QQQ", "BTC-USD", "GC=F", "SI=F"].join(",")}`).then(r => r.json()),
+        fetch(`${PLAID_SERVER}/api/market/quote?symbols=${[...syms, "^VIX", "DIA", "QQQ", "VOO", "BTC-USD", "GC=F", "SI=F"].join(",")}`).then(r => r.json()),
         fetch(`${PLAID_SERVER}/api/market/news?symbols=SPY,QQQ,DIA,VIX,^TNX`).then(r => r.json()),
         fetch(`${PLAID_SERVER}/api/calendar`).then(r => r.json()).catch(() => ({ events: [] })),
         ...syms.map(sym => fetch(`${PLAID_SERVER}/api/market/history?symbol=${sym}`).then(r => r.json()).catch(() => null))
@@ -692,42 +698,24 @@ function OverviewTab({ portData, watchlistData, todos, setTodos, rules, settings
   const vixSentiment = vixLevel >= 30 ? "Extreme Fear" : vixLevel >= 25 ? "Fear" : vixLevel >= 20 ? "Elevated" : vixLevel >= 15 ? "Neutral" : vixLevel > 0 ? "Greed" : null;
   const vixColor = vixLevel >= 30 ? C.red : vixLevel >= 25 ? C.orange : vixLevel >= 20 ? "#f59e0b" : vixLevel >= 15 ? C.muted : C.green;
 
-  // Dynamic market advice based on VIX + index performance
+  // Market status description (facts only — DCA advice is in the sentiment card below)
   const vixAdvice = (() => {
     if (!vixLevel) return null;
     const spy = quotes["QQQ"] || quotes["DIA"] || {};
     const mktChg = spy.changePct || 0;
-    const vixChg = vix.changePct || 0;
 
     if (vixLevel >= 30) {
       return mktChg < -2
-        ? `Market panic — indices down ${Math.abs(mktChg).toFixed(1)}% with VIX spiking. Historically a great time to start DCA into quality positions. Fear = opportunity.`
-        : `VIX is elevated at ${vixLevel.toFixed(0)} but markets are holding (${mktChg >= 0 ? "+" : ""}${mktChg.toFixed(1)}%). Panic is fading — stay ready to deploy cash on any further dips.`;
+        ? `VIX ${vixLevel.toFixed(0)} · Markets down ${Math.abs(mktChg).toFixed(1)}% — extreme fear`
+        : `VIX ${vixLevel.toFixed(0)} · Markets ${mktChg >= 0 ? "+" : ""}${mktChg.toFixed(1)}% — fear elevated but holding`;
     }
     if (vixLevel >= 25) {
-      return mktChg < -1
-        ? `Fear is rising — markets down ${Math.abs(mktChg).toFixed(1)}% today. Consider starting to DCA into ETFs. Don't go all in, scale in gradually.`
-        : `VIX shows fear but markets are resilient (${mktChg >= 0 ? "+" : ""}${mktChg.toFixed(1)}%). Buyers are stepping in — a good sign. Watch for follow-through.`;
+      return `VIX ${vixLevel.toFixed(0)} · Markets ${mktChg >= 0 ? "+" : ""}${mktChg.toFixed(1)}% — elevated fear`;
     }
     if (vixLevel >= 20) {
-      return mktChg > 0.5
-        ? `Market is shaking off nerves — up ${mktChg.toFixed(1)}% despite elevated VIX. Holding up well. Keep watchlist ready.`
-        : mktChg < -0.5
-        ? `Market is nervous and drifting lower (${mktChg.toFixed(1)}%). Keep watchlist ready, could see better entry points soon.`
-        : `Market is choppy with mild unease. No urgency — stick to plan and watch for clearer direction.`;
+      return `VIX ${vixLevel.toFixed(0)} · Markets ${mktChg >= 0 ? "+" : ""}${mktChg.toFixed(1)}% — some nervousness`;
     }
-    if (vixLevel >= 15) {
-      return mktChg > 1
-        ? `Markets rallying ${mktChg.toFixed(1)}% in a calm environment. Good conditions — stick to your plan, momentum is positive.`
-        : mktChg < -1
-        ? `Markets pulling back ${Math.abs(mktChg).toFixed(1)}% but VIX is calm — orderly dip, not panic. Could be a buying opportunity.`
-        : mktChg >= 0
-        ? `Markets steady (${mktChg >= 0 ? "+" : ""}${mktChg.toFixed(1)}%) with low volatility. Business as usual — stick to your plan.`
-        : `Slight red day (${mktChg.toFixed(1)}%) but nothing concerning. Normal market noise.`;
-    }
-    return mktChg > 0
-      ? `Low volatility, market grinding higher (+${mktChg.toFixed(1)}%). Be cautious of complacency — don't chase highs.`
-      : `Low VIX but markets flat/slightly red. Calm waters can precede surprises — stay disciplined.`;
+    return `VIX ${vixLevel.toFixed(0)} · Markets ${mktChg >= 0 ? "+" : ""}${mktChg.toFixed(1)}%`;
   })();
 
   return (
@@ -757,7 +745,7 @@ function OverviewTab({ portData, watchlistData, todos, setTodos, rules, settings
         } else if (mins < 16 * 60) {
           session = "Power Hour"; sessionColor = C.orange; sessionIcon = "◉";
         } else if (mins < 20 * 60) {
-          session = "After Hours"; sessionColor = "#f59e0b"; sessionIcon = "◐";
+          session = "After Hours"; sessionColor = C.red; sessionIcon = "◐";
         } else {
           session = "Closed"; sessionColor = C.muted; sessionIcon = "●";
         }
@@ -800,7 +788,160 @@ function OverviewTab({ portData, watchlistData, todos, setTodos, rules, settings
                   </div>
                 </div>
               )}
-              {vixAdvice && <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>{vixAdvice}</div>}
+              {/* ── Market Sentiment Report + DCA Signal ── */}
+              {(() => {
+                const qqqQ = quotes["QQQ"];
+                const vooQ = quotes["VOO"];
+                const qqqT = technicals["QQQ"];
+                const vooT = technicals["VOO"];
+                if (!qqqQ?.price) return vixAdvice ? <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>{vixAdvice}</div> : null;
+
+                const qPct = qqqQ.pctDown || 0;
+                const vPct = vooQ?.pctDown || 0;
+                const rsi = qqqT?.rsi14;
+                const rsiPrev = qqqT?.rsi14Prev;
+                const cross = qqqT?.ema50 && qqqT?.ema200 ? (qqqT.ema50 < qqqT.ema200 ? "death cross" : "golden cross") : null;
+
+                const lines = [];
+                // ATH distance
+                if (qPct < 1 && vPct < 1) lines.push("QQQ and VOO are near all-time highs — no discount.");
+                else if (qPct < 5) lines.push(`QQQ is ${qPct.toFixed(1)}% below ATH, VOO ${vPct.toFixed(1)}% off — a mild pullback.`);
+                else if (qPct < 10) lines.push(`QQQ is ${qPct.toFixed(1)}% off ATH, VOO ${vPct.toFixed(1)}% off — a moderate correction.`);
+                else if (qPct < 20) lines.push(`QQQ is ${qPct.toFixed(1)}% below ATH, VOO ${vPct.toFixed(1)}% off — significant correction.`);
+                else lines.push(`QQQ is ${qPct.toFixed(1)}% off ATH — deep drawdown.`);
+
+                // VIX
+                if (vixLevel >= 30) lines.push(`VIX at ${vixLevel.toFixed(0)} — extreme fear.`);
+                else if (vixLevel >= 25) lines.push(`VIX at ${vixLevel.toFixed(0)} — elevated fear, historically marks good entries.`);
+                else if (vixLevel >= 20) lines.push(`VIX at ${vixLevel.toFixed(0)} — some nervousness.`);
+                else lines.push(`VIX at ${vixLevel.toFixed(0)} — calm.`);
+
+                // RSI with direction (the key signal)
+                if (rsi != null) {
+                  const dir = rsiPrev != null ? (rsi > rsiPrev ? "rising" : rsi < rsiPrev ? "falling" : "flat") : "";
+                  if (rsiPrev != null && rsiPrev < 30 && rsi >= 30) lines.push(`Weekly RSI just exited oversold (${rsiPrev.toFixed(0)} → ${rsi.toFixed(0)}) — reversal confirmed, deploy now.`);
+                  else if (rsi < 30 && dir === "falling") lines.push(`RSI ${rsi.toFixed(0)} and still falling — oversold but knife hasn't stopped. Wait.`);
+                  else if (rsi < 30 && dir === "rising") lines.push(`RSI ${rsi.toFixed(0)} turning up from oversold — early reversal forming.`);
+                  else if (rsi > 70) lines.push(`RSI ${rsi.toFixed(0)} — overbought.`);
+                  else lines.push(`RSI ${rsi.toFixed(0)}${dir ? ` and ${dir}` : ""} — neutral.`);
+                }
+                if (cross) lines.push(`QQQ ${cross}.`);
+
+                // VIX + RSI combo
+                if (vixLevel >= 25 && rsi != null && rsi < 30 && rsiPrev != null && rsi > rsiPrev) {
+                  lines.push("High VIX + RSI reversing from oversold — historically marks major bottoms.");
+                }
+
+                /* DCA to-do with signal priority */
+                const strat = portData.strategy || {};
+                const cachedGap = strat._cachedEtfGap || 0;
+                let dcaTodos = null;
+                if (cachedGap > 0 && qqqQ.price) {
+                  const dLog = strat.deploymentLog || [];
+                  const rem = cachedGap;
+                  const mo = strat.dcaMonths || 12;
+                  const first = dLog[0]?.date;
+                  const elapsed = first ? Math.max(0, Math.round((Date.now() - new Date(first).getTime()) / (30.44 * 86400000))) : 0;
+                  const left = Math.max(1, mo - elapsed);
+                  const mBase = rem / left;
+                  const DIP_MIN = 2;
+                  const qMul = (p) => Math.max(0.5, Math.min(Math.pow(1 + (p / 100) / 0.05, 2) / 2, 6.0));
+                  const vBase2 = mBase * 0.70, qBase2 = mBase * 0.30;
+                  const vTriggered = vPct >= DIP_MIN, qTriggered = qPct >= DIP_MIN;
+                  const cap = rem * 0.40, floor = rem * 0.02;
+
+                  /* Signal function (same logic as DeploymentPlanTab) */
+                  const getOvSig = (sym) => {
+                    const tech2 = sym === "QQQ" ? qqqT : vooT;
+                    const pDown = sym === "QQQ" ? qPct : vPct;
+                    const r = tech2?.rsi14, rP = tech2?.rsi14Prev;
+                    const now2 = new Date();
+                    const dow2 = now2.getDay();
+                    const dom2 = now2.getDate();
+                    const dimM = new Date(now2.getFullYear(), now2.getMonth() + 1, 0).getDate();
+                    const lw = dom2 >= (dimM - 7);
+                    const bestDay = dow2 === 1 || dow2 === 2;
+                    const rRising = r != null && rP != null && r > rP;
+                    const rFalling = r != null && rP != null && r < rP;
+                    const rOS = r != null && r < 30;
+                    const rExit = r != null && rP != null && r >= 30 && rP < 30;
+                    const dip = pDown >= DIP_MIN;
+
+                    if (rExit) return { action: "DEPLOY NOW", label: "RSI reversal confirmed" };
+                    if (rOS && rFalling) return { action: "WAIT", label: "knife falling" };
+                    if (rOS && rRising) return { action: "DEPLOY NOW", label: "bottom forming" };
+                    if (dip && rRising) return { action: "DIP BUY", label: "dip + RSI rising" };
+                    if (dip) return { action: "DIP BUY", label: `${pDown.toFixed(1)}% dip` };
+                    if (lw && bestDay) return { action: "BASE DCA", label: "no dip, Mon/Tue base" };
+                    if (lw) return { action: "BASE DCA", label: "no dip, end of month" };
+                    return { action: "BASE DCA", label: "base deploy" };
+                  };
+
+                  const vSig = getOvSig("VOO"), qSig = getOvSig("QQQ");
+
+                  const calcOvAmt = (base, mult, triggered, sig) => {
+                    if (!sig || sig.action === "WAIT") return 0;
+                    if (triggered) return Math.min(cap, Math.max(floor, base * mult));
+                    return base * 0.5;
+                  };
+
+                  const vAmt = calcOvAmt(vBase2, qMul(vPct), vTriggered, vSig);
+                  const qAmt = calcOvAmt(qBase2, qMul(qPct), qTriggered, qSig);
+                  const mo2 = new Date().toISOString().slice(0, 7);
+                  const mLog = dLog.filter(dl => dl.date?.startsWith(mo2));
+                  const vDone = mLog.some(dl => dl.symbol === "VOO");
+                  const qDone = mLog.some(dl => dl.symbol === "QQQ");
+                  const toggleLog = (sym, amt) => {
+                    const isDone = mLog.some(dl => dl.symbol === sym);
+                    const newLog = isDone
+                      ? dLog.filter(dl => !(dl.date?.startsWith(mo2) && dl.symbol === sym))
+                      : [...dLog, { date: new Date().toISOString().slice(0, 10), symbol: sym, amount: amt }];
+                    setPortData({ ...portData, strategy: { ...strat, deploymentLog: newLog } });
+                  };
+
+                  const items = [
+                    { sym: "VOO", amt: vAmt, price: vooQ?.price, done: vDone, sig: vSig },
+                    { sym: "QQQ", amt: qAmt, price: qqqQ?.price, done: qDone, sig: qSig },
+                  ]; // always show both ETFs
+
+                  if (items.length > 0) {
+                    dcaTodos = (
+                      <div style={{ marginTop: 8 }}>
+                        {items.map(({ sym, amt, price, done, sig }) => {
+                          const isWait = sig.action === "WAIT";
+                          return (
+                            <div key={sym} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0" }}>
+                              {isWait ? (
+                                <span style={{ fontSize: 12, color: "#ef4444" }}>⏸</span>
+                              ) : (
+                                <input type="checkbox" checked={done} style={{ accentColor: C.accent, cursor: "pointer" }}
+                                  onChange={() => toggleLog(sym, amt)} />
+                              )}
+                              <span style={{ fontSize: 13, color: isWait ? "#ef4444" : done ? C.muted : C.text, textDecoration: done ? "line-through" : "none" }}>
+                                {isWait ? (
+                                  <><strong>{sym}</strong> — {sig.label}, wait for reversal</>
+                                ) : (
+                                  <>Buy {mask(`~${Math.floor(amt / (price || 1))} shares`, hide)} of <strong>{sym}</strong> ({mask(fmt(amt), hide)})
+                                    <span style={{ fontSize: 10, color: C.muted }}> — {sig.label}</span>
+                                  </>
+                                )}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  }
+                }
+
+                return (
+                  <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginTop: 6 }}>
+                    {lines.join(" ")}
+                    {dcaTodos}
+                  </div>
+                );
+              })()}
+
               {lastRefresh && <div style={{ fontSize: 9, color: C.muted, marginTop: 6, opacity: 0.6 }}>Updated {lastRefresh.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })} · auto-refreshes every 5m during market hours</div>}
             </div>
           </div>
@@ -811,7 +952,8 @@ function OverviewTab({ portData, watchlistData, todos, setTodos, rules, settings
       {(() => {
         const TAPE = [
           { sym: "DIA", label: "US30" },
-          { sym: "QQQ", label: "NAS" },
+          { sym: "QQQ", label: "QQQ" },
+          { sym: "VOO", label: "VOO" },
           { sym: "BTC-USD", label: "BTC" },
           { sym: "GC=F", label: "XAU" },
           { sym: "SI=F", label: "XAG" },
@@ -1012,6 +1154,8 @@ function OverviewTab({ portData, watchlistData, todos, setTodos, rules, settings
           </div>
         );
       })()}
+
+      {/* DCA Deployment lives in Portfolio > Deployment tab */}
 
       {/* ── To-Do List ── */}
       <div style={{ ...s.card, marginBottom: 20 }}>
@@ -1241,9 +1385,33 @@ function NetWorthTab({ data, setData, settings, rates, theme, hide }) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingJournal, setEditingJournal] = useState(null);
   const [newItem, setNewItem] = useState({ bucket: "Opco", name: "", currency: "CAD", value: "", isLiability: false });
+  const [expandedNwItem, setExpandedNwItem] = useState(null);
+  const nwPlaidLinks = data.nwPlaidLinks || {};
 
   const snaps = data.snapshots || [];
   const currentMonthKey = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`; })();
+
+  /* Seed Plaid account links (one-time) */
+  useEffect(() => {
+    if (data.nwPlaidLinks) return;
+    setData({ ...data, nwPlaidLinks: {
+      "Opco|CAD Cheq": "*6021", "Opco|USD Cheq": "*1095",
+      "Opco|CAD VISA": "*2470", "Opco|USD VISA": "*0348",
+      "Holdco|RBC CAD Cheq + GIC": "*1608 + *9311", "Holdco|RBC USD Cheq": "*3652",
+      "Holdco|RBC CAD House Fund": "*6748", "Holdco|TD Stocks": "*RR3F",
+      "Holdco|Interactive Brokers Stocks": "*3357", "Holdco|RBC Dominion Bonds": "*2361",
+      "Holdco|RBC Dominion 60/40": "*8692",
+      "Jon|RBC CAD Cheq": "*4999", "Jon|RBC USD Cheq": "*1342",
+      "Jon|CAD RRSP": "*1169", "Jon|RBC Direct Investing USD": "*3438",
+      "Jon|RBC Direct Investing CAD": "*3438",
+      "Jon|CAD VISA": "*5313", "Jon|USD VISA": "*8706",
+      "Jon|Mortgage (50%)": "*2002",
+      "Jacqueline|TD CAD Cheq": "*7084", "Jacqueline|TD CAD TFSA": "*B15J",
+      "Jacqueline|RBC CAD Sav": "*5004", "Jacqueline|RBC USD Sav": "*1383",
+      "Jacqueline|RBC GIC CAD": "*9752", "Jacqueline|RBC CAD VISA": "*0440",
+      "Jacqueline|Mortgage (50%)": "*2002",
+    }});
+  }, []);
 
   /* Auto-create the current month from last month's accounts if it doesn't exist */
   useEffect(() => {
@@ -1569,13 +1737,19 @@ function NetWorthTab({ data, setData, settings, rates, theme, hide }) {
   const [editingUsdId, setEditingUsdId] = useState(null);
   const renderItems = (items, isLiability, hasUSD) => {
     const color = isLiability ? C.red : C.text;
-    return items.map(item => {
+    return items.flatMap(item => {
       const isEditing = editingItemId === item.id;
       const isEditingUsd = editingUsdId === item.id;
       const usdValue = item.currency === "USD" ? Math.round(fromCAD(Number(item.value || 0), "USD", rates)) : null;
-      return (
+      const linkKey = `${item.bucket}|${item.name}`;
+      const linked = nwPlaidLinks[linkKey];
+      const isExpanded = expandedNwItem === linkKey;
+      const rows = [(
         <tr key={item.id}>
-          <td style={{ padding: "3px 0", fontSize: 13, color, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{isLiability ? "− " : ""}{item.name}</td>
+          <td style={{ padding: "3px 0", fontSize: 13, color, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", cursor: linked ? "pointer" : "default" }}
+            onClick={() => linked && setExpandedNwItem(isExpanded ? null : linkKey)}>
+            {isLiability ? "− " : ""}{item.name} {linked ? <span style={{ fontSize: 9, color: C.muted }}>▸</span> : ""}
+          </td>
           <td style={{ padding: "3px 0", textAlign: "right", cursor: hide ? "default" : "text" }}
             onClick={() => { if (!hide) { setEditingItemId(item.id); setEditingUsdId(null); } }}>
             {isEditing && !hide ? (
@@ -1622,7 +1796,17 @@ function NetWorthTab({ data, setData, settings, rates, theme, hide }) {
             </td>
           )}
         </tr>
-      );
+      )];
+      if (isExpanded && linked) {
+        rows.push(
+          <tr key={item.id + "_link"}>
+            <td colSpan={hasUSD ? 3 : 2} style={{ padding: "2px 0 6px 12px", fontSize: 11, color: C.muted }}>
+              Plaid: {linked}
+            </td>
+          </tr>
+        );
+      }
+      return rows;
     });
   };
 
@@ -1647,8 +1831,8 @@ function NetWorthTab({ data, setData, settings, rates, theme, hide }) {
         <div className="mc-table-wrap"><table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
           <colgroup>
             <col />
-            <col style={{ width: 110 }} />
-            {hasUSD && <col style={{ width: 85 }} />}
+            <col style={{ width: 95 }} />
+            {hasUSD && <col style={{ width: 75 }} />}
           </colgroup>
           <thead>
             <tr>
@@ -1898,7 +2082,7 @@ function NetWorthTab({ data, setData, settings, rates, theme, hide }) {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={C.card2} />
               <XAxis dataKey="month" stroke={C.muted} fontSize={12} />
-              <YAxis stroke={C.muted} fontSize={12} tickFormatter={v => fmt(v)} />
+              <YAxis stroke={C.muted} fontSize={12} tickFormatter={v => hide ? "•••" : fmt(v)} />
               <Tooltip content={<ChartTooltip C={C} />} />
               <Area type="monotone" dataKey="netWorthHigh" stroke={C.cyan} fill={`${C.cyan}15`} strokeWidth={1} strokeDasharray="4 3" name="High (Optimistic)" />
               <Area type="monotone" dataKey="netWorth" stroke={C.green} fill="url(#nwGrad)" strokeWidth={2} name="Low (Conservative)" />
@@ -1963,7 +2147,693 @@ function NetWorthTab({ data, setData, settings, rates, theme, hide }) {
 /* ═══════════════════════════════════════════════════════════
    TAB 2 — PORTFOLIO
    ═══════════════════════════════════════════════════════════ */
-function PortfolioTab({ data, setData, nwData, settings, rates, theme, hide }) {
+function PortfolioAlertsTab({ settings, setSettings, theme }) {
+  const C = themes[theme]; const s = S(theme);
+  const sms = settings.smsAlerts || DEFAULT_SETTINGS.smsAlerts;
+  const drops = sms.dropAlerts || DEFAULT_SETTINGS.smsAlerts.dropAlerts || [];
+  const updateSms = (patch) => setSettings({ ...settings, smsAlerts: { ...sms, ...patch } });
+  const updateDrops = (newDrops) => updateSms({ dropAlerts: newDrops });
+  const [alertStatus, setAlertStatus] = useState(null);
+  const [testResult, setTestResult] = useState(null);
+  const [newDrop, setNewDrop] = useState({ symbol: "", tiers: "" });
+
+  React.useEffect(() => {
+    fetch(`${PLAID_SERVER}/api/alerts/status`).then(r => r.json()).then(setAlertStatus).catch(() => {});
+  }, []);
+
+  const sendTest = async () => {
+    setTestResult("Sending...");
+    try {
+      const r = await fetch(`${PLAID_SERVER}/api/alerts/test`, { method: "POST" });
+      const d = await r.json();
+      setTestResult(d.ok ? "✓ Test SMS sent!" : `✗ ${d.error}`);
+    } catch (err) { setTestResult(`✗ ${err.message}`); }
+    setTimeout(() => setTestResult(null), 5000);
+  };
+
+  const chk = (label, key) => (
+    <label key={key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer" }}>
+      <input type="checkbox" checked={!!sms[key]} onChange={e => updateSms({ [key]: e.target.checked })}
+        style={{ accentColor: C.orange }} />
+      <span style={{ fontSize: 13, color: C.text }}>{label}</span>
+    </label>
+  );
+
+  const addDropAlert = () => {
+    const sym = newDrop.symbol.trim().toUpperCase();
+    const tiers = newDrop.tiers.split(",").map(t => parseFloat(t.trim())).filter(t => t > 0 && t <= 100);
+    if (!sym || tiers.length === 0) return;
+    if (drops.find(d => d.symbol === sym)) {
+      updateDrops(drops.map(d => d.symbol === sym ? { ...d, tiers: tiers.sort((a,b) => a-b) } : d));
+    } else {
+      updateDrops([...drops, { symbol: sym, tiers: tiers.sort((a,b) => a-b) }]);
+    }
+    setNewDrop({ symbol: "", tiers: "" });
+  };
+
+  const removeDrop = (sym) => updateDrops(drops.filter(d => d.symbol !== sym));
+
+  return (<>
+    {/* Master toggle + status */}
+    <div style={s.card}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <h3 style={{ ...s.h3, margin: 0 }}>SMS Market Alerts</h3>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {alertStatus && (
+            <span style={{ fontSize: 11, color: alertStatus.twilioConfigured ? C.green : C.muted }}>
+              {alertStatus.twilioConfigured ? `Twilio ✓ ${alertStatus.phoneLast4 || ""}` : "Twilio not configured"}
+            </span>
+          )}
+          <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+            <span style={{ fontSize: 12, color: sms.enabled ? C.green : C.muted, fontWeight: 600 }}>{sms.enabled ? "ON" : "OFF"}</span>
+            <input type="checkbox" checked={sms.enabled} onChange={e => updateSms({ enabled: e.target.checked })}
+              style={{ accentColor: C.orange, width: 16, height: 16 }} />
+          </label>
+        </div>
+      </div>
+      <div style={{ fontSize: 12, color: C.muted, marginBottom: 4 }}>
+        Text alerts when market conditions trigger. Server checks every 5 min during market hours.
+      </div>
+      {!sms.enabled && <div style={{ fontSize: 12, color: C.muted, fontStyle: "italic", marginTop: 8 }}>Toggle ON to configure alerts.</div>}
+    </div>
+
+    {sms.enabled && (<>
+      {/* Signal alerts card */}
+      <div style={s.card}>
+        <div style={{ display: "flex", gap: 24 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Signal Alerts</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+              {chk("Portfolio price alerts", "portfolioAlerts")}
+              {chk("Death cross detection", "deathCross")}
+              {chk("Golden cross detection", "goldenCross")}
+              {chk("RSI oversold (< 30)", "rsiOversold")}
+              {chk("RSI overbought (> 70)", "rsiOverbought")}
+              {chk("Watchlist buy targets", "buyTargets")}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Thresholds</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 12, color: C.muted, minWidth: 80 }}>Daily Move</span>
+                <input type="number" min={1} max={50} step={0.5} style={{ ...s.input, width: 55, fontSize: 12, padding: "3px 6px" }}
+                  value={sms.dailyChangePct || ""} onChange={e => updateSms({ dailyChangePct: parseFloat(e.target.value) || null })} />
+                <span style={{ fontSize: 11, color: C.muted }}>%</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 12, color: C.muted, minWidth: 80 }}>VIX Above</span>
+                <input type="number" min={10} max={80} step={1} style={{ ...s.input, width: 55, fontSize: 12, padding: "3px 6px" }}
+                  value={sms.vixAbove || ""} onChange={e => updateSms({ vixAbove: parseFloat(e.target.value) || null })} />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 12, color: C.muted, minWidth: 80 }}>VIX Below</span>
+                <input type="number" min={5} max={50} step={1} style={{ ...s.input, width: 55, fontSize: 12, padding: "3px 6px" }}
+                  value={sms.vixBelow || ""} placeholder="—" onChange={e => updateSms({ vixBelow: parseFloat(e.target.value) || null })} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Drop from ATH card */}
+      <div style={s.card}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <div>
+            <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Drop from ATH Alerts</div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Get texted when a symbol drops X% from its 52-week high</div>
+          </div>
+        </div>
+        {drops.length > 0 && (
+          <div style={{ marginBottom: 10, marginTop: 10 }}>
+            {drops.map(da => (
+              <div key={da.symbol} style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "7px 10px", marginBottom: 2, borderRadius: 6, background: C.card2 || C.border + "22" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: C.orange, minWidth: 70 }}>{da.symbol}</span>
+                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                    {da.tiers.sort((a,b) => a-b).map(t => (
+                      <span key={t} style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4,
+                        background: C.orange + "18", color: C.orange, fontWeight: 600 }}>{t}%</span>
+                    ))}
+                  </div>
+                </div>
+                <button onClick={() => removeDrop(da.symbol)}
+                  style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 14, padding: "2px 6px", opacity: 0.5 }}
+                  onMouseEnter={e => e.target.style.opacity = 1} onMouseLeave={e => e.target.style.opacity = 0.5}>✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 8 }}>
+          <input type="text" placeholder="Symbol" style={{ ...s.input, width: 80, fontSize: 12 }}
+            value={newDrop.symbol} onChange={e => setNewDrop({ ...newDrop, symbol: e.target.value })} />
+          <input type="text" placeholder="Tiers: 5, 10, 15, 20" style={{ ...s.input, flex: 1, fontSize: 12 }}
+            value={newDrop.tiers} onChange={e => setNewDrop({ ...newDrop, tiers: e.target.value })}
+            onKeyDown={e => { if (e.key === "Enter") addDropAlert(); }} />
+          <button onClick={addDropAlert} style={{ ...s.btnSm, fontSize: 11, padding: "4px 10px" }}>Add</button>
+        </div>
+      </div>
+
+      {/* Test + cooldown status */}
+      <div style={s.card}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button style={{ ...s.btnSm, background: C.orange + "22", color: C.orange, border: `1px solid ${C.orange}44` }} onClick={sendTest}>
+            Send Test SMS
+          </button>
+          {testResult && <span style={{ fontSize: 12, color: testResult.startsWith("✓") ? C.green : testResult === "Sending..." ? C.muted : C.red }}>{testResult}</span>}
+          {alertStatus && alertStatus.cooldowns && alertStatus.cooldowns.length > 0 && (
+            <span style={{ fontSize: 11, color: C.muted, marginLeft: "auto" }}>
+              {alertStatus.cooldowns.length} alert{alertStatus.cooldowns.length !== 1 ? "s" : ""} on cooldown (4h window)
+            </span>
+          )}
+        </div>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>
+          Requires Twilio credentials in plaid-server/.env — see TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER, ALERT_PHONE_NUMBER.
+        </div>
+      </div>
+    </>)}
+  </>);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DEPLOYMENT PLAN TAB (inside Portfolio)
+   Quadratic DCA with live market data, checklist, sentiment
+   ═══════════════════════════════════════════════════════════ */
+function DeploymentPlanTab({ data, setData, nwData, enriched, allocRows, totalVal, rates, theme, hide }) {
+  const C = themes[theme]; const s = S(theme);
+  const strategy = data.strategy || {};
+  const updateStrategy = (updates) => setData({ ...data, strategy: { ...strategy, ...updates } });
+  const [newRule, setNewRule] = useState("");
+
+  /* Fetch live market data for QQQ, VOO, VIX — including RSI history for both ETFs */
+  const [mktData, setMktData] = useState({ quotes: {}, technicals: {} });
+  useEffect(() => {
+    const syms = "QQQ,VOO,^VIX";
+    const doFetch = () => {
+      Promise.all([
+        fetch(`${PLAID_SERVER}/api/market/quote?symbols=${syms}`).then(r => r.json()).catch(() => ({ quotes: [] })),
+        fetch(`${PLAID_SERVER}/api/market/history?symbol=QQQ`).then(r => r.json()).catch(() => null),
+        fetch(`${PLAID_SERVER}/api/market/history?symbol=VOO`).then(r => r.json()).catch(() => null),
+      ]).then(([qData, qqqTech, vooTech]) => {
+        const qMap = {};
+        (qData.quotes || []).forEach(q => { qMap[q.symbol] = q; });
+        setMktData({ quotes: qMap, technicals: { QQQ: qqqTech, VOO: vooTech } });
+      });
+    };
+    doFetch();
+    const id = setInterval(doFetch, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const qqq = mktData.quotes["QQQ"];
+  const voo = mktData.quotes["VOO"];
+  const vix = mktData.quotes["^VIX"];
+  const qqqTech = mktData.technicals["QQQ"];
+  const vooTech = mktData.technicals["VOO"];
+  const hasMarketData = !!qqq?.price && !!voo?.price;
+  const DIP_THRESHOLD = 2; // must be ≥2% off ATH to trigger accelerated buying
+
+  /* ── RSI-based DCA signal priority system ──
+     Uses weekly RSI 14 (sweet spot: daily too noisy, monthly too slow).
+     Priority 1: RSI exits oversold (crosses back above 30) → deploy full amount NOW
+     Priority 2a: RSI < 30 and still falling → knife is falling, WAIT
+     Priority 2b: ETF ≥2% off ATH + RSI rising → dip buy
+     Priority 3: No dip, last week of month, Mon/Tue → deploy base amount
+     Priority 4: VIX dropping from 25+ → confirms bottom forming, boost confidence
+  */
+  const getSignal = (sym) => {
+    const tech = sym === "QQQ" ? qqqTech : vooTech;
+    const q = sym === "QQQ" ? qqq : voo;
+    const pctDown = q?.pctDown || 0;
+    const rsi = tech?.rsi14;
+    const rsiPrev = tech?.rsi14Prev;
+    const vixLevel = vix?.price || 0;
+    const now = new Date();
+    const dow = now.getDay(); // 0=Sun, 1=Mon, 2=Tue
+    const dom = now.getDate();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const lastWeek = dom >= (daysInMonth - 7);
+    const isBestDay = dow === 1 || dow === 2; // Mon/Tue statistically cheapest
+
+    const rsiRising = rsi != null && rsiPrev != null && rsi > rsiPrev;
+    const rsiFalling = rsi != null && rsiPrev != null && rsi < rsiPrev;
+    const rsiOversold = rsi != null && rsi < 30;
+    const rsiExitOversold = rsi != null && rsiPrev != null && rsi >= 30 && rsiPrev < 30;
+    const vixElevated = vixLevel >= 25;
+    const dipTriggered = pctDown >= DIP_THRESHOLD;
+
+    // Priority 1: RSI just crossed back above 30 → reversal confirmed
+    if (rsiExitOversold) return {
+      priority: 1, action: "DEPLOY NOW", color: "#10b981",
+      label: `RSI reversal confirmed — was ${rsiPrev?.toFixed(0)}, now ${rsi?.toFixed(0)}`,
+      detail: "RSI exited oversold. Historically the single best DCA entry signal.",
+      boost: vixElevated ? 1.3 : 1.0
+    };
+
+    // Priority 2a: RSI < 30 and still falling → knife falling
+    if (rsiOversold && rsiFalling) return {
+      priority: 2, action: "WAIT", color: "#ef4444",
+      label: `Knife falling — RSI ${rsi?.toFixed(0)} ↓ (was ${rsiPrev?.toFixed(0)})`,
+      detail: "RSI still dropping in oversold territory. Wait for reversal before deploying.",
+      boost: 0
+    };
+
+    // Priority 2b: RSI < 30 and rising → bottom forming
+    if (rsiOversold && rsiRising) return {
+      priority: 2, action: "DEPLOY NOW", color: "#f59e0b",
+      label: `Bottom forming — RSI ${rsi?.toFixed(0)} ↑ from ${rsiPrev?.toFixed(0)}`,
+      detail: "RSI turning up from oversold. Early reversal signal — deploy.",
+      boost: vixElevated ? 1.2 : 1.0
+    };
+
+    // Priority 2c: Dip ≥2% + RSI rising (but not oversold) → standard dip buy
+    if (dipTriggered && rsiRising) return {
+      priority: 2, action: "DIP BUY", color: "#f59e0b",
+      label: `${pctDown.toFixed(1)}% dip + RSI rising (${rsi?.toFixed(0)})`,
+      detail: "Meaningful pullback with momentum recovering. Good entry.",
+      boost: 1.0
+    };
+
+    // Priority 2d: Dip ≥2% + RSI flat or unknown → still worth buying the dip
+    if (dipTriggered) return {
+      priority: 3, action: "DIP BUY", color: C.accent,
+      label: `${pctDown.toFixed(1)}% off ATH${rsi ? ` · RSI ${rsi.toFixed(0)}` : ""}`,
+      detail: "Discount from highs. Quadratic multiplier active.",
+      boost: 1.0
+    };
+
+    // Priority 3: Last week of month, no dip → base DCA on Mon/Tue
+    if (lastWeek && isBestDay) return {
+      priority: 4, action: "BASE DCA", color: C.muted,
+      label: `No dip this month — Mon/Tue base deploy`,
+      detail: "No significant pullback. Deploy minimum base amount. Mon/Tue are statistically the cheapest entry days.",
+      boost: 0
+    };
+
+    // Priority 3b: Last week, any day → fallback base
+    if (lastWeek) return {
+      priority: 5, action: "BASE DCA", color: C.muted,
+      label: `No dip — end of month base deploy`,
+      detail: `No dip this month. Deploying base 0.5x.${isBestDay ? "" : " Monday or Tuesday would be slightly better."}`,
+      boost: 0
+    };
+
+    // No dip, not end of month — still deploy base amount
+    return {
+      priority: 5, action: "BASE DCA", color: C.muted,
+      label: `Near ATH${rsi ? ` · RSI ${rsi.toFixed(0)}` : ""} — base deploy`,
+      detail: "No significant dip. Deploying minimum 0.5x base amount.",
+      boost: 0
+    };
+  };
+
+  const vooSignal = hasMarketData ? getSignal("VOO") : null;
+  const qqqSignal = hasMarketData ? getSignal("QQQ") : null;
+
+  /* ETF allocation gap */
+  const etfRow = allocRows?.find(r => r.name === "ETF");
+  const etfActual = etfRow?.actualVal || 0;
+  const etfActualPct = etfRow?.actualPct || 0;
+  const modTargetPct = etfRow?.modPct || 55;
+  const aggTargetPct = etfRow?.aggPct || 60;
+  const midTargetPct = (modTargetPct + aggTargetPct) / 2;
+  const etfTarget = totalVal * (midTargetPct / 100);
+  const etfGap = Math.max(0, etfTarget - etfActual);
+  /* Gap is from real portfolio data — no double-counting with deployment log */
+  const remaining = etfGap;
+
+  /* Timeline */
+  const dcaMonths = strategy.dcaMonths || 12;
+  const firstDeploy = (strategy.deploymentLog || [])[0]?.date;
+  const monthsElapsed = firstDeploy ? Math.max(0, Math.round((Date.now() - new Date(firstDeploy).getTime()) / (30.44 * 86400000))) : 0;
+  const monthsLeft = Math.max(1, dcaMonths - monthsElapsed);
+  const monthlyBase = remaining / monthsLeft;
+  const progressPct = etfTarget > 0 ? Math.min(100, etfActual / etfTarget * 100) : 0;
+
+  /* Total targets: 70/30 split of the gap */
+  const vooGoal = etfGap * 0.70;
+  const qqqGoal = etfGap * 0.30;
+
+  /* Separate quadratic DCA multipliers per ETF — 70/30 base split */
+  const qqqPctDown = qqq?.pctDown || 0;
+  const vooPctDown = voo?.pctDown || 0;
+  const quadMult = (pct) => Math.max(0.5, Math.min(Math.pow(1 + (pct / 100) / 0.05, 2) / 2, 6.0));
+
+  const vooBase = monthlyBase * 0.70;
+  const qqqBase = monthlyBase * 0.30;
+  const vooMult = quadMult(vooPctDown);
+  const qqqMult = quadMult(qqqPctDown);
+  const vooTriggered = vooPctDown >= DIP_THRESHOLD;
+  const qqqTriggered = qqqPctDown >= DIP_THRESHOLD;
+
+  /* Each ETF: signal priority determines action. Knife falling → WAIT (deploy $0).
+     Dip buy / reversal → quadratic amount. No dip + end of month → base 0.5x. */
+  const capPerETF = remaining * 0.40;
+  const floorPerETF = remaining * 0.02;
+  const dayOfMonth = new Date().getDate();
+  const daysInMo = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+  const endOfMonth = dayOfMonth >= (daysInMo - 7);
+
+  const calcAmt = (base, mult, triggered, signal) => {
+    if (!signal) return 0;
+    if (signal.action === "WAIT") return 0; // knife falling — don't deploy
+    if (triggered) {
+      const raw = base * mult * (signal.boost || 1.0);
+      return Math.min(capPerETF, Math.max(floorPerETF, raw));
+    }
+    return base * 0.5; // base DCA — always deploy at least the minimum
+  };
+
+  const vooAmt = calcAmt(vooBase, vooMult, vooTriggered, vooSignal);
+  const qqqAmt = calcAmt(qqqBase, qqqMult, qqqTriggered, qqqSignal);
+  const vooShow = !!vooSignal; // always show both ETFs (WAIT shows as info, not checkbox)
+  const qqqShow = !!qqqSignal;
+  const deployAmount = (vooShow ? vooAmt : 0) + (qqqShow ? qqqAmt : 0);
+  const multiplier = monthlyBase > 0 ? deployAmount / monthlyBase : 1;
+
+  /* Checklist state */
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const monthLog = (strategy.deploymentLog || []).filter(dl => dl.date?.startsWith(thisMonth));
+  const vooDeployed = monthLog.some(dl => dl.symbol === "VOO");
+  const qqqDeployed = monthLog.some(dl => dl.symbol === "QQQ");
+  const allDone = (!vooShow || vooDeployed) && (!qqqShow || qqqDeployed);
+  const totalDeployed = (strategy.deploymentLog || []).reduce((sum, dl) => sum + (dl.amount || 0), 0);
+
+  /* Cache ETF gap for Overview market bar */
+  useEffect(() => {
+    if (etfGap > 0 && etfGap !== strategy._cachedEtfGap) {
+      updateStrategy({ _cachedEtfGap: etfGap });
+    }
+  }, [etfGap]);
+
+  const toggleDeploy = (sym, amt) => {
+    const log = strategy.deploymentLog || [];
+    const isDone = monthLog.some(dl => dl.symbol === sym);
+    const newLog = isDone
+      ? log.filter(dl => !(dl.date?.startsWith(thisMonth) && dl.symbol === sym))
+      : [...log, { date: new Date().toISOString().slice(0, 10), symbol: sym, amount: amt }];
+    updateStrategy({ deploymentLog: newLog });
+  };
+
+  /* Multiplier table helpers — per-ETF quadratic */
+  const multAt = (pct) => quadMult(pct);
+  const deployAt = (pct) => {
+    const triggered = pct >= DIP_THRESHOLD;
+    const vA = triggered ? Math.min(capPerETF, Math.max(floorPerETF, vooBase * quadMult(pct))) : vooBase * 0.5;
+    const qA = triggered ? Math.min(capPerETF, Math.max(floorPerETF, qqqBase * quadMult(pct))) : qqqBase * 0.5;
+    return vA + qA;
+  };
+
+  /* Pace label */
+  let paceLabel, paceColor;
+  if (multiplier >= 4.0) { paceLabel = "AGGRESSIVE"; paceColor = C.green; }
+  else if (multiplier >= 2.0) { paceLabel = "ACCELERATED"; paceColor = C.green; }
+  else if (multiplier >= 1.0) { paceLabel = "NORMAL"; paceColor = C.accent; }
+  else { paceLabel = "LIGHT — saving for dips"; paceColor = C.muted; }
+
+  return (
+    <div>
+      {/* ═══ MAIN DCA CARD — signal-based deployment ═══ */}
+      <div style={s.card}>
+        {!hasMarketData ? (
+          <div style={{ fontSize: 13, color: C.muted }}>Loading market data...</div>
+        ) : (<>
+          {/* Header: amount + pace */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+            <div>
+              <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Deploy This Month</div>
+              <div style={{ fontSize: 26, fontWeight: 700, color: C.accent }}>{mask(fmt(deployAmount), hide)}</div>
+              <div style={{ fontSize: 12, color: paceColor, fontWeight: 600, marginTop: 2 }}>{multiplier.toFixed(1)}x — {paceLabel}</div>
+            </div>
+          </div>
+
+          {/* ── Market Sentiment Report (written, not badges) ── */}
+          <div style={{ marginBottom: 14, padding: "12px 14px", borderRadius: 5, background: C.card2 + "44", border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Market Report</div>
+            <div style={{ fontSize: 13, color: C.text, lineHeight: 1.6 }}>
+              {(() => {
+                const vixLevel = vix?.price || 0;
+                const qRsi = qqqTech?.rsi14;
+                const qRsiPrev = qqqTech?.rsi14Prev;
+                const vRsi = vooTech?.rsi14;
+                const cross = qqqTech?.ema50 && qqqTech?.ema200 ? (qqqTech.ema50 < qqqTech.ema200 ? "death cross" : "golden cross") : null;
+
+                const lines = [];
+                // Position vs ATH
+                if (qqqPctDown < 1 && vooPctDown < 1) lines.push("QQQ and VOO are near all-time highs — no discount.");
+                else if (qqqPctDown < 5) lines.push(`QQQ is ${qqqPctDown.toFixed(1)}% below ATH, VOO ${vooPctDown.toFixed(1)}% off — a mild pullback.`);
+                else if (qqqPctDown < 10) lines.push(`QQQ is ${qqqPctDown.toFixed(1)}% off ATH, VOO ${vooPctDown.toFixed(1)}% off — a moderate correction.`);
+                else if (qqqPctDown < 20) lines.push(`QQQ is ${qqqPctDown.toFixed(1)}% below ATH, VOO ${vooPctDown.toFixed(1)}% off — significant correction territory.`);
+                else lines.push(`QQQ is ${qqqPctDown.toFixed(1)}% off ATH — deep drawdown.`);
+
+                // VIX
+                if (vixLevel >= 30) lines.push(`VIX at ${vixLevel.toFixed(0)} — extreme fear in the market.`);
+                else if (vixLevel >= 25) lines.push(`VIX at ${vixLevel.toFixed(0)} — elevated fear, which historically marks good entry points.`);
+                else if (vixLevel >= 20) lines.push(`VIX at ${vixLevel.toFixed(0)} — some nervousness but not panic.`);
+                else lines.push(`VIX at ${vixLevel.toFixed(0)} — calm, low-volatility environment.`);
+
+                // RSI with direction
+                if (qRsi != null) {
+                  const dir = qRsiPrev != null ? (qRsi > qRsiPrev ? "rising" : qRsi < qRsiPrev ? "falling" : "flat") : "";
+                  if (qRsi < 30 && dir === "falling") lines.push(`Weekly RSI ${qRsi.toFixed(0)} and still falling — oversold but the knife hasn't stopped. Wait for reversal.`);
+                  else if (qRsi < 30 && dir === "rising") lines.push(`Weekly RSI ${qRsi.toFixed(0)} and turning up from oversold — early reversal signal forming.`);
+                  else if (qRsiPrev != null && qRsiPrev < 30 && qRsi >= 30) lines.push(`Weekly RSI just exited oversold (${qRsiPrev.toFixed(0)} → ${qRsi.toFixed(0)}) — this is historically the single best DCA entry signal.`);
+                  else if (qRsi > 70) lines.push(`RSI ${qRsi.toFixed(0)} — overbought. Not ideal for deploying large amounts.`);
+                  else lines.push(`RSI ${qRsi.toFixed(0)}${dir ? ` and ${dir}` : ""} — neutral territory.`);
+                }
+
+                // EMA cross
+                if (cross) lines.push(`QQQ is in a ${cross} (50 EMA ${cross === "death cross" ? "below" : "above"} 200 EMA).`);
+
+                // VIX + RSI combo (the holy grail)
+                if (vixLevel >= 25 && qRsi != null && qRsi < 30 && qRsiPrev != null && qRsi > qRsiPrev) {
+                  lines.push("High VIX + RSI reversing from oversold — this combination has historically marked major bottoms (like March 30, 2025).");
+                }
+
+                return lines.join(" ");
+              })()}
+            </div>
+          </div>
+
+          {/* VOO / QQQ split — signal-based cards */}
+          <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+            {[{ sym: "VOO", amt: vooAmt, pct: vooPctDown, mult: vooMult, triggered: vooTriggered, signal: vooSignal, show: vooShow, base: "70%" },
+              { sym: "QQQ", amt: qqqAmt, pct: qqqPctDown, mult: qqqMult, triggered: qqqTriggered, signal: qqqSignal, show: qqqShow, base: "30%" }].map(({ sym, amt, pct, mult, triggered, signal, show, base }) => {
+              const sigColor = signal?.color || C.muted;
+              const isWait = signal?.action === "WAIT";
+              return (
+                <div key={sym} style={{ flex: 1, padding: "10px 14px", borderRadius: 5, background: C.card2 + "66", border: `1px solid ${isWait ? C.red + "44" : show ? C.accent + "44" : C.border}`, opacity: signal?.action === "WATCHING" ? 0.5 : 1 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{sym} <span style={{ fontSize: 10, color: C.muted, fontWeight: 400 }}>({base})</span></span>
+                    <span style={{ fontSize: 11, color: pct > 5 ? C.orange : pct >= 2 ? C.accent : C.muted }}>-{pct.toFixed(1)}% ATH</span>
+                  </div>
+                  {signal && (
+                    <div style={{ fontSize: 10, fontWeight: 700, color: sigColor, marginTop: 3, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                      {signal.action}{triggered ? ` · ${mult.toFixed(1)}x` : signal.action === "BASE DCA" ? " · 0.5x" : ""}
+                    </div>
+                  )}
+                  {signal && <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{signal.label}</div>}
+                  <div style={{ fontSize: 18, fontWeight: 700, color: isWait ? C.red : show && amt > 0 ? C.accent : C.muted, marginTop: 4 }}>
+                    {isWait ? "WAIT" : show && amt > 0 ? mask(fmt(amt), hide) : "—"}
+                  </div>
+                  {show && amt > 0 && !isWait && <div style={{ fontSize: 10, color: C.muted }}>{mask(`~${Math.floor(amt / (toBase(mktData.quotes[sym]?.price || 1, "USD", rates)))} shares @ $${(mktData.quotes[sym]?.price || 0).toFixed(2)}`, hide)}</div>}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Action checklist — only actionable items */}
+          <div style={{ marginBottom: 14, padding: "12px 14px", borderRadius: 5, background: allDone ? C.green + "11" : C.accent + "08", border: `1px solid ${allDone ? C.green + "33" : C.accent + "33"}` }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: allDone ? C.green : C.accent, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+              {allDone ? "✓ Deployed this month" : (vooShow || qqqShow) ? "Action Required — " + new Date().toLocaleString("en-US", { month: "long", year: "numeric" }) : "Watching for dips — no action yet"}
+            </div>
+            {[{ sym: "VOO", amt: vooAmt, done: vooDeployed, show: vooShow, signal: vooSignal },
+              { sym: "QQQ", amt: qqqAmt, done: qqqDeployed, show: qqqShow, signal: qqqSignal }]
+              .filter(x => x.show && x.amt > 0 && x.signal?.action !== "WAIT")
+              .map(({ sym, amt, done, signal }) => (
+              <div key={sym} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, cursor: "pointer" }}
+                onClick={() => toggleDeploy(sym, amt)}>
+                <div style={{ width: 20, height: 20, borderRadius: 4, border: `2px solid ${done ? C.green : C.accent}`, background: done ? C.green : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
+                  {done && <span style={{ color: "#fff", fontSize: 12, fontWeight: 700 }}>✓</span>}
+                </div>
+                <span style={{ fontSize: 13, color: done ? C.muted : C.text, textDecoration: done ? "line-through" : "none" }}>
+                  Buy {mask(`~${Math.floor(amt / (toBase(mktData.quotes[sym]?.price || 1, "USD", rates)))} shares`, hide)} of <strong>{sym}</strong> ({mask(fmt(amt), hide)})
+                  {signal && <span style={{ fontSize: 10, color: signal.color, marginLeft: 4 }}> — {signal.action.toLowerCase()}</span>}
+                </span>
+              </div>
+            ))}
+            {/* Show WAIT signals as info (not checkboxes) */}
+            {[{ sym: "VOO", signal: vooSignal }, { sym: "QQQ", signal: qqqSignal }]
+              .filter(x => x.signal?.action === "WAIT")
+              .map(({ sym, signal }) => (
+              <div key={sym} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                <div style={{ width: 20, height: 20, borderRadius: 4, border: `2px solid ${C.red}44`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <span style={{ color: C.red, fontSize: 11, fontWeight: 700 }}>⏸</span>
+                </div>
+                <span style={{ fontSize: 13, color: C.red }}>
+                  <strong>{sym}</strong> — {signal.label}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* ETF gap progress + total goals */}
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 3 }}>
+              <span style={{ color: C.muted }}>ETF {etfActualPct.toFixed(0)}% → {modTargetPct}-{aggTargetPct}% target</span>
+              <span style={{ color: C.muted }}>{mask(fmt(etfActual), hide)} / {mask(fmt(etfTarget), hide)}</span>
+            </div>
+            <div style={{ background: C.card2, borderRadius: 5, height: 8, overflow: "hidden" }}>
+              <div style={{ background: `linear-gradient(90deg, ${C.accent}, ${C.green})`, height: "100%", width: `${progressPct}%`, borderRadius: 5, transition: "width 0.5s" }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: C.muted, marginTop: 3 }}>
+              <span>Gap: {mask(fmt(remaining), hide)} — VOO {mask(fmt(vooGoal), hide)} · QQQ {mask(fmt(qqqGoal), hide)}</span>
+              <span>{monthsLeft}mo left · {mask(fmt(monthlyBase), hide)}/mo base</span>
+            </div>
+          </div>
+
+          {/* At other levels */}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", fontSize: 10, color: C.muted }}>
+            {[0, 5, 10, 15, 20].map(pct => {
+              const isActive = Math.abs(qqqPctDown - pct) < 1.5;
+              return (
+                <span key={pct} style={{ padding: "2px 8px", borderRadius: 3, background: isActive ? C.accent + "22" : C.card2 + "44", color: isActive ? C.accent : C.muted, fontWeight: isActive ? 700 : 400 }}>
+                  {pct === 0 ? "ATH" : `-${pct}%`}: {mask(fmt(deployAt(pct)), hide)}
+                </span>
+              );
+            })}
+          </div>
+        </>)}
+      </div>
+
+      {/* ═══ PLAN SETTINGS ═══ */}
+      <div style={s.card}>
+        <h3 style={s.h3}>Plan Settings</h3>
+        <div style={{ fontSize: 13, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>
+          Quadratic DCA — deploy more when markets dip, less near highs. Amount scales with the <strong style={{ color: C.text }}>square</strong> of the discount from ATH.
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+          <div>
+            <label style={{ fontSize: 11, color: C.muted, display: "block", marginBottom: 4 }}>Timeline (months)</label>
+            <input style={s.input} type="number" value={dcaMonths}
+              onChange={e => updateStrategy({ dcaMonths: parseInt(e.target.value) || 12 })} />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: C.muted, display: "block", marginBottom: 4 }}>ETF gap (auto)</label>
+            <div style={{ fontSize: 16, fontWeight: 700, color: C.accent, paddingTop: 8 }}>{mask(fmt(etfGap), hide)}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ═══ MULTIPLIER TABLE ═══ */}
+      <div style={s.card}>
+        <h3 style={{ ...s.h3, marginBottom: 4 }}>Multiplier Table</h3>
+        <div style={{ fontSize: 11, color: C.muted, marginBottom: 12 }}>Formula: base × (1 + drawdown/5%)² ÷ 2 · Max 40% of remaining per month</div>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead><tr>
+            <th style={{ ...s.th, textAlign: "left" }}>QQQ off ATH</th>
+            <th style={{ ...s.th, textAlign: "right" }}>Multiplier</th>
+            <th style={{ ...s.th, textAlign: "right" }}>Deploy</th>
+            <th style={{ ...s.th, textAlign: "right" }}>Avg 1yr fwd return</th>
+          </tr></thead>
+          <tbody>
+            {[{ pct: 0, ret: "+9%" }, { pct: 3, ret: "+12%" }, { pct: 5, ret: "+15%" }, { pct: 7, ret: "+17%" }, { pct: 10, ret: "+18%" }, { pct: 15, ret: "+22%" }, { pct: 20, ret: "+28%" }].map(({ pct, ret }) => {
+              const isNow = hasMarketData && Math.abs(qqqPctDown - pct) < 1.5;
+              return (
+                <tr key={pct} style={{ borderBottom: `1px solid ${C.border}22`, background: isNow ? C.accent + "11" : "transparent" }}>
+                  <td style={{ ...s.td, fontWeight: 600 }}>{pct === 0 ? "At ATH" : `-${pct}%`} {isNow && <span style={{ fontSize: 9, color: C.accent }}> ← now</span>}</td>
+                  <td style={{ ...s.td, textAlign: "right", color: multAt(pct) >= 2 ? C.green : multAt(pct) >= 1 ? C.accent : C.muted }}>{multAt(pct).toFixed(1)}x</td>
+                  <td style={{ ...s.td, textAlign: "right", fontWeight: 600, color: C.accent }}>{mask(fmt(deployAt(pct)), hide)}</td>
+                  <td style={{ ...s.td, textAlign: "right", color: C.green }}>{ret}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ═══ HOW THE SIGNAL SYSTEM WORKS ═══ */}
+      <div style={s.card}>
+        <h3 style={s.h3}>How This Strategy Works</h3>
+        <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.7 }}>
+          <p style={{ margin: "0 0 8px" }}>This system uses <strong style={{ color: C.text }}>weekly RSI 14</strong> (not daily — too noisy, not monthly — too slow) combined with VIX, ATH drawdown, and calendar effects to time DCA entries at the highest-probability moments.</p>
+
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.text, marginBottom: 4 }}>Signal Priority:</div>
+            {[
+              { n: "1", color: "#10b981", label: "RSI exits oversold", desc: "RSI crosses back above 30 after being below it. Historically the single best DCA entry signal. Deploy full quadratic amount immediately." },
+              { n: "2a", color: "#ef4444", label: "Knife falling", desc: "RSI < 30 and still dropping. Market hasn't bottomed — WAIT. Don't try to catch the falling knife." },
+              { n: "2b", color: "#f59e0b", label: "Dip buy", desc: "ETF ≥2% off ATH with RSI rising. Meaningful pullback with recovering momentum. Good entry point." },
+              { n: "3", color: C.muted, label: "Base DCA", desc: "No dip all month. Last week, Monday or Tuesday — deploy minimum 0.5x base. Monday and Tuesday are statistically the cheapest days to buy." },
+              { n: "+", color: "#8b5cf6", label: "VIX confirmation", desc: "VIX ≥25 and dropping alongside RSI reversal confirms a bottom forming. This combo marked the March 30 bottom perfectly." },
+            ].map(({ n, color, label, desc }) => (
+              <div key={n} style={{ display: "flex", gap: 8, marginBottom: 6, paddingLeft: 4 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color, background: color + "18", padding: "1px 6px", borderRadius: 3, flexShrink: 0, height: "fit-content" }}>P{n}</span>
+                <div>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{label}</span>
+                  <span style={{ fontSize: 11, color: C.muted }}> — {desc}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <p style={{ margin: "0 0 4px" }}><strong style={{ color: C.text }}>Quadratic scaling:</strong> base × (1 + drawdown/5%)² ÷ 2. A 5% dip = 2x, 10% = 4.5x, 15% = 5.5x. Capped at 40% of remaining to prevent one month from eating the whole plan.</p>
+          <p style={{ margin: 0 }}><strong style={{ color: C.text }}>70/30 split:</strong> VOO gets 70% (broad S&P 500), QQQ gets 30% (tech-heavy satellite). Each ETF's own ATH distance drives its own multiplier independently.</p>
+        </div>
+      </div>
+
+      {/* ═══ DEPLOYMENT HISTORY ═══ */}
+      <div style={s.card}>
+        <h3 style={s.h3}>Deployment History</h3>
+        {(strategy.deploymentLog || []).length === 0 ? (
+          <div style={{ fontSize: 13, color: C.muted }}>No deployments yet. Check off items above when you buy.</div>
+        ) : (<>
+          {[...(strategy.deploymentLog || [])].reverse().map((dl, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${C.border}22` }}>
+              <div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{dl.symbol || "ETF"}</span>
+                <span style={{ fontSize: 11, color: C.muted, marginLeft: 8 }}>{dl.date}</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.green }}>{mask(fmt(dl.amount), hide)}</span>
+                <button style={{ ...s.btnGhost, fontSize: 9, color: C.red + "88" }} onClick={() => {
+                  const log = (strategy.deploymentLog || []).filter((_, j) => j !== (strategy.deploymentLog.length - 1 - i));
+                  updateStrategy({ deploymentLog: log });
+                }}>✕</button>
+              </div>
+            </div>
+          ))}
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, padding: "8px 0", borderTop: `1px solid ${C.border}` }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Total deployed</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: C.accent }}>{mask(fmt(totalDeployed), hide)}</span>
+          </div>
+        </>)}
+      </div>
+
+      {/* ═══ HOLD ZONE ═══ */}
+      <div style={{ ...s.card, background: `linear-gradient(135deg, ${C.card}, ${C.accent}08)`, border: `2px solid ${C.accent}33` }}>
+        <h3 style={s.h3}>Hold Zone — Your Calm-Mind Rules</h3>
+        <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>You wrote these when you were thinking clearly. Read them when you feel the urge to sell.</div>
+        {(strategy.holdRules || []).map((rule, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 10, padding: "12px 16px", background: C.card2 + "66", borderRadius: 5, borderLeft: `3px solid ${C.accent}` }}>
+            <span style={{ fontSize: 13, color: C.accent, fontWeight: 700, flexShrink: 0, width: 18, textAlign: "center" }}>{i + 1}</span>
+            <span style={{ fontSize: 13, color: C.text, lineHeight: 1.5, flex: 1 }}>{rule}</span>
+            <button style={{ background: "transparent", border: "none", color: C.red + "88", cursor: "pointer", fontSize: 9, padding: "2px 6px", flexShrink: 0 }}
+              onClick={() => updateStrategy({ holdRules: strategy.holdRules.filter((_, j) => j !== i) })}>✕</button>
+          </div>
+        ))}
+        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+          <input style={{ ...s.input, flex: 1 }} placeholder="Write a new rule for yourself..." value={newRule} onChange={e => setNewRule(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && newRule.trim()) { updateStrategy({ holdRules: [...(strategy.holdRules || []), newRule.trim()] }); setNewRule(""); } }} />
+          <button style={s.btn} onClick={() => { if (newRule.trim()) { updateStrategy({ holdRules: [...(strategy.holdRules || []), newRule.trim()] }); setNewRule(""); } }}>Add Rule</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PortfolioTab({ data, setData, nwData, settings, setSettings, rates, theme, hide }) {
   const C = themes[theme]; const s = S(theme);
   const [filterBucket, setFilterBucket] = useState("All");
   const [filterTag, setFilterTag] = useState("All");
@@ -1982,14 +2852,15 @@ function PortfolioTab({ data, setData, nwData, settings, rates, theme, hide }) {
 
   /* ── Strategy & Psychology state ── */
   const ASSET_CLASSES = ["Stock", "ETF", "Bond", "Fund", "Crypto", "Precious Metal", "Cash", "Other"];
-  const defaultModerate = { Stock: 18, ETF: 22, Bond: 22, Fund: 10, Crypto: 3, "Precious Metal": 10, Cash: 10, Other: 5 };
-  const defaultAggressive = { Stock: 25, ETF: 28, Bond: 12, Fund: 7, Crypto: 5, "Precious Metal": 10, Cash: 8, Other: 5 };
+  const defaultModerate = { Stock: 5, ETF: 55, Bond: 15, Fund: 2, Crypto: 8, "Precious Metal": 5, Cash: 10, Other: 0 };
+  const defaultAggressive = { Stock: 10, ETF: 60, Bond: 10, Fund: 0, Crypto: 10, "Precious Metal": 3, Cash: 5, Other: 2 };
   const strategy = data.strategy || { targetModerate: defaultModerate, targetAggressive: defaultAggressive, dcaMonthly: 15000, dcaMonths: 12, dcaStartDate: new Date().toISOString().slice(0, 10), dipTriggers: [{ pctDrop: 5, extraAmount: 5000 }, { pctDrop: 10, extraAmount: 10000 }, { pctDrop: 15, extraAmount: 20000 }], holdRules: ["I will not sell during a downturn unless I need the cash within 12 months.", "A 10% drop is normal — it happens almost every year. I will buy more, not sell.", "I trust my allocation. I don't need to check prices every day.", "Time in the market beats timing the market. I am investing for 20+ years."], deploymentLog: [] };
   const updateStrategy = (updates) => setData({ ...data, strategy: { ...strategy, ...updates } });
   const [newRule, setNewRule] = useState("");
   const [showStrategyEdit, setShowStrategyEdit] = useState(false);
   const [priceRefreshing, setPriceRefreshing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(null);
+  const [portSubTab, setPortSubTab] = useState("summary");
 
   const refreshPrices = async () => {
     setPriceRefreshing(true);
@@ -2055,8 +2926,19 @@ function PortfolioTab({ data, setData, nwData, settings, rates, theme, hide }) {
   const nwAllocItems = useMemo(() => {
     const snap = nwData?.snapshots?.[0];
     if (!snap || !snap.items?.length) return null;
-    const withType = snap.items.map(it => ({ ...it, type: inferNwItemType(it) }));
-    return withType.filter(it => it.type !== "Liability" && it.type !== "Real Estate" && it.type !== "Other");
+    const result = [];
+    snap.items.forEach(it => {
+      const typed = { ...it, type: inferNwItemType(it) };
+      /* Split 60/40 funds into ETF + Bond virtual items */
+      if (/60.40/i.test(it.name)) {
+        const v = Number(it.value || 0);
+        result.push({ ...typed, name: `${it.name} (60% ETF)`, type: "ETF", value: (v * 0.6).toFixed(2) });
+        result.push({ ...typed, name: `${it.name} (40% Bond)`, type: "Bond", value: (v * 0.4).toFixed(2) });
+        return;
+      }
+      result.push(typed);
+    });
+    return result.filter(it => it.type !== "Liability" && it.type !== "Real Estate" && it.type !== "Other");
   }, [nwData]);
   /* Short-term liabilities (credit cards, not mortgage) reduce investible cash */
   const nwLiabilityTotal = useMemo(() => {
@@ -2074,6 +2956,12 @@ function PortfolioTab({ data, setData, nwData, settings, rates, theme, hide }) {
       nwAllocItems.forEach(it => {
         if (isIBItem(it.name)) return; /* skip IB aggregate — portData has the breakdown */
         const valCAD = Number(it.value || 0);
+        /* Split 60/40 funds: 60% counts as ETF, 40% as Bond */
+        if (/60.40/i.test(it.name)) {
+          map["ETF"] = (map["ETF"] || 0) + valCAD * 0.6;
+          map["Bond"] = (map["Bond"] || 0) + valCAD * 0.4;
+          return;
+        }
         map[it.type] = (map[it.type] || 0) + valCAD;
       });
     }
@@ -2145,6 +3033,12 @@ function PortfolioTab({ data, setData, nwData, settings, rates, theme, hide }) {
       nwAllocItems.forEach(it => {
         if (isIBItem(it.name)) return;
         const v = Number(it.value || 0);
+        /* Split 60/40 funds: 60% counts as ETF, 40% as Bond */
+        if (/60.40/i.test(it.name)) {
+          map["ETF"] = (map["ETF"] || 0) + v * 0.6;
+          map["Bond"] = (map["Bond"] || 0) + v * 0.4;
+          return;
+        }
         map[it.type] = (map[it.type] || 0) + v;
       });
     }
@@ -2186,6 +3080,17 @@ function PortfolioTab({ data, setData, nwData, settings, rates, theme, hide }) {
 
   return (
     <div>
+      {/* ── Portfolio sub-tabs ── */}
+      <div style={{ display: "flex", gap: 0, borderBottom: `2px solid ${C.border}33`, marginBottom: 16 }}>
+        {[["summary", "Summary"], ["alerts", "Alerts"], ["deployment", "Deployment"]].map(([key, label]) => (
+          <button key={key} onClick={() => setPortSubTab(key)}
+            style={{ background: "none", border: "none", borderBottom: portSubTab === key ? `2px solid ${C.orange}` : "2px solid transparent",
+              padding: "8px 18px", marginBottom: -2, color: portSubTab === key ? C.text : C.muted,
+              fontWeight: portSubTab === key ? 700 : 400, fontSize: 14, cursor: "pointer", letterSpacing: 0.3 }}>{label}</button>
+        ))}
+      </div>
+
+      {portSubTab === "summary" && <>
       {/* ═══ ROW 1: Stats + Actions ═══ */}
       <CollapsibleStats label="Summary" C={C}>
         <div className="mc-stat-row" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -2289,7 +3194,7 @@ function PortfolioTab({ data, setData, nwData, settings, rates, theme, hide }) {
                     </td>
                     <td style={{ padding: "8px 0", fontSize: 13, textAlign: "right", fontWeight: 600, color: !inRange ? (under ? C.orange : C.red) : C.green }}>{r.actualPct.toFixed(1)}%</td>
                     <td style={{ padding: "8px 0", fontSize: 13, textAlign: "right", color: C.text }}>{mask(fmt(r.actualVal), hide)}</td>
-                    <td style={{ padding: "8px 0", fontSize: 13, textAlign: "right", color: C.muted }}>{r.modPct === r.aggPct ? `${r.modPct}%` : `${r.modPct}–${r.aggPct}%`}</td>
+                    <td style={{ padding: "8px 0", fontSize: 13, textAlign: "right", color: C.muted }}>{r.modPct === r.aggPct ? `${r.modPct}%` : `${Math.min(r.modPct, r.aggPct)}–${Math.max(r.modPct, r.aggPct)}%`}</td>
                     <td style={{ padding: "8px 0", fontSize: 13, textAlign: "right", color: C.muted }}>{mask(fmt(targetDollar), hide)}</td>
                   </tr>
                   {isOpen && classHoldings.map((h, j) => (
@@ -2347,7 +3252,7 @@ function PortfolioTab({ data, setData, nwData, settings, rates, theme, hide }) {
                   <span style={{ fontSize: 9, fontWeight: 600, color: over ? C.orange : C.accent, background: (over ? C.orange : C.accent) + "18", padding: "1px 6px", borderRadius: 3 }}>{over ? "Over" : "Under"}</span>
                 </div>
                 <div style={{ fontSize: 11, color: C.muted, marginBottom: 2 }}>Now {mask(fmt(r.actualVal), hide)} ({r.actualPct.toFixed(1)}%)</div>
-                <div style={{ fontSize: 11, color: C.text, fontWeight: 600 }}>Goal {mask(fmt(goalVal), hide)} ({r.modPct}–{r.aggPct}%)</div>
+                <div style={{ fontSize: 11, color: C.text, fontWeight: 600 }}>Goal {mask(fmt(goalVal), hide)} ({Math.min(r.modPct, r.aggPct)}–{Math.max(r.modPct, r.aggPct)}%)</div>
                 <div style={{ fontSize: 9, color: over ? C.orange : C.accent, marginTop: 4 }}>{over ? "↓" : "↑"} {mask(fmt(Math.abs(r.diff)), hide)} to rebalance</div>
               </div>
             );
@@ -2428,146 +3333,7 @@ function PortfolioTab({ data, setData, nwData, settings, rates, theme, hide }) {
         });
       })()}
 
-      {/* ══════════════════════════════════════════════════
-         DEPLOYMENT PLAN (DCA + DIP TRIGGERS)
-         ══════════════════════════════════════════════════ */}
-      <div style={s.card}>
-        <h3 style={s.h3}>Deployment Plan</h3>
-        <div style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>Get your cash into the market with discipline — monthly DCA plus extra buys on dips.</div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
-          <div>
-            <label style={{ ...s.muted, display: "block", marginBottom: 4 }}>Monthly Amount (CAD)</label>
-            <input style={s.input} type="number" value={strategy.dcaMonthly || 15000}
-              onChange={e => updateStrategy({ dcaMonthly: parseFloat(e.target.value) || 0 })} />
-          </div>
-          <div>
-            <label style={{ ...s.muted, display: "block", marginBottom: 4 }}>Duration (months)</label>
-            <input style={s.input} type="number" value={strategy.dcaMonths || 12}
-              onChange={e => updateStrategy({ dcaMonths: parseInt(e.target.value) || 12 })} />
-          </div>
-          <div>
-            <label style={{ ...s.muted, display: "block", marginBottom: 4 }}>Total to Deploy</label>
-            <div style={{ ...s.mono, fontSize: 16, fontWeight: 700, color: C.accent, paddingTop: 8 }}>
-              {mask(fmtFull((strategy.dcaMonthly || 15000) * (strategy.dcaMonths || 12)), hide)}
-            </div>
-          </div>
-        </div>
-
-        {/* DCA timeline */}
-        {(() => {
-          const months = strategy.dcaMonths || 12;
-          const monthly = strategy.dcaMonthly || 15000;
-          const deployed = (strategy.deploymentLog || []).reduce((s, d) => s + d.amount, 0);
-          const remaining = (monthly * months) - deployed;
-          const pctDone = deployed / (monthly * months);
-          return (
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
-                <span style={{ color: C.green }}>Deployed: {mask(fmtFull(deployed), hide)}</span>
-                <span style={{ color: C.muted }}>Remaining: {mask(fmtFull(remaining), hide)}</span>
-              </div>
-              <div style={{ background: C.card2, borderRadius: 5, height: 16, overflow: "hidden" }}>
-                <div style={{ background: `linear-gradient(90deg, ${C.green}, ${C.accent})`, height: "100%", width: `${Math.min(100, pctDone * 100)}%`, borderRadius: 5, transition: "width 0.5s" }} />
-              </div>
-              <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{(pctDone * 100).toFixed(0)}% deployed — {mask(fmtFull(monthly), hide)}/month for {months} months</div>
-              <button style={{ ...s.btnSm, marginTop: 8 }} onClick={() => {
-                const amt = prompt("Amount deployed this month (CAD):", monthly);
-                if (amt) updateStrategy({ deploymentLog: [...(strategy.deploymentLog || []), { date: new Date().toISOString().slice(0, 10), amount: parseFloat(amt) }] });
-              }}>Log Deployment</button>
-            </div>
-          );
-        })()}
-
-        {/* Dip triggers */}
-        <h4 style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 8, marginTop: 16 }}>Buy-the-Dip Triggers</h4>
-        <div style={{ fontSize: 13, color: C.muted, marginBottom: 8 }}>When markets drop from their high, deploy extra cash on top of your monthly DCA.</div>
-        {(strategy.dipTriggers || []).map((t, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, padding: "8px 12px", background: C.card2 + "44", borderRadius: 5 }}>
-            <span style={{ fontSize: 16, color: t.pctDrop >= 15 ? C.red : t.pctDrop >= 10 ? C.orange : C.muted, fontWeight: 700 }}>{t.pctDrop >= 15 ? "▼▼" : t.pctDrop >= 10 ? "▼" : "—"}</span>
-            <span style={{ fontSize: 13, color: C.text, flex: 1 }}>
-              If market drops <strong style={{ color: C.red }}>{t.pctDrop}%</strong> from high → deploy extra <strong style={{ color: C.green }}>{mask(fmtFull(t.extraAmount), hide)}</strong>
-            </span>
-            <button style={{ ...s.btnSm, padding: "2px 8px", fontSize: 9 }} onClick={() => {
-              const triggers = [...(strategy.dipTriggers || [])];
-              triggers.splice(i, 1);
-              updateStrategy({ dipTriggers: triggers });
-            }}>✕</button>
-          </div>
-        ))}
-        <button style={{ ...s.btnSm, marginTop: 8 }} onClick={() => {
-          const pct = prompt("Drop % trigger (e.g., 5, 10, 15):");
-          const amt = prompt("Extra amount to deploy (CAD):");
-          if (pct && amt) updateStrategy({ dipTriggers: [...(strategy.dipTriggers || []), { pctDrop: parseFloat(pct), extraAmount: parseFloat(amt) }] });
-        }}>+ Add Trigger</button>
-      </div>
-
-      {/* ══════════════════════════════════════════════════
-         HOLD ZONE — PSYCHOLOGY & DISCIPLINE
-         ══════════════════════════════════════════════════ */}
-      <div style={{ ...s.card, background: `linear-gradient(135deg, ${C.card}, ${C.accent}08)`, border: `2px solid ${C.accent}33` }}>
-        <h3 style={{ ...s.h3, fontSize: 16, display: "flex", alignItems: "center", gap: 6 }}><Icon name="brain" size={16} color={C.accent} /> Hold Zone — Your Calm-Mind Rules</h3>
-        <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>
-          You wrote these when you were thinking clearly. Read them when you feel the urge to sell.
-        </div>
-        {(strategy.holdRules || []).map((rule, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 10, padding: "12px 16px", background: C.card2 + "66", borderRadius: 5, borderLeft: `3px solid ${C.accent}` }}>
-            <span style={{ fontSize: 13, color: C.accent, fontWeight: 700, flexShrink: 0, width: 18, textAlign: "center" }}>{i + 1}</span>
-            <span style={{ fontSize: 13, color: C.text, lineHeight: 1.5, flex: 1 }}>{rule}</span>
-            <button style={{ background: "transparent", border: "none", color: C.red + "88", cursor: "pointer", fontSize: 9, padding: "2px 6px", flexShrink: 0 }}
-              onClick={() => updateStrategy({ holdRules: strategy.holdRules.filter((_, j) => j !== i) })}>✕</button>
-          </div>
-        ))}
-        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-          <input style={{ ...s.input, flex: 1 }} placeholder="Write a new rule for yourself..." value={newRule} onChange={e => setNewRule(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter" && newRule.trim()) { updateStrategy({ holdRules: [...(strategy.holdRules || []), newRule.trim()] }); setNewRule(""); } }} />
-          <button style={s.btn} onClick={() => { if (newRule.trim()) { updateStrategy({ holdRules: [...(strategy.holdRules || []), newRule.trim()] }); setNewRule(""); } }}>Add Rule</button>
-        </div>
-      </div>
-
-      {/* Historical context */}
-      <div style={s.card}>
-        <h3 style={{ ...s.h3, display: "flex", alignItems: "center", gap: 6 }}><Icon name="trendingUp" size={15} color={C.accent} /> Historical Perspective — Why Holding Works</h3>
-        <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>Every major crash has been followed by recovery. Here's proof.</div>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th style={s.th}>Event</th>
-              <th style={{ ...s.th, textAlign: "right" }}>Drop</th>
-              <th style={{ ...s.th, textAlign: "right" }}>Recovery Time</th>
-              <th style={{ ...s.th, textAlign: "right" }}>5yr After Bottom</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[
-              { event: "2008 Financial Crisis", drop: "-56.8%", recovery: "~4 years", after5: "+128%" },
-              { event: "2020 COVID Crash", drop: "-33.9%", recovery: "~5 months", after5: "+107%" },
-              { event: "2022 Bear Market", drop: "-25.4%", recovery: "~2 years", after5: "ongoing" },
-              { event: "2000 Dot-com Bust", drop: "-49.1%", recovery: "~7 years", after5: "+48%" },
-              { event: "1987 Black Monday", drop: "-33.5%", recovery: "~2 years", after5: "+98%" },
-            ].map((r, i) => (
-              <tr key={i} style={{ background: i % 2 ? C.card2 + "33" : "transparent" }}>
-                <td style={{ ...s.td, fontWeight: 600 }}>{r.event}</td>
-                <td style={{ ...s.td, ...s.mono, textAlign: "right", color: C.red }}>{r.drop}</td>
-                <td style={{ ...s.td, ...s.mono, textAlign: "right" }}>{r.recovery}</td>
-                <td style={{ ...s.td, ...s.mono, textAlign: "right", color: C.green }}>{r.after5}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div style={{ marginTop: 16, padding: "12px 16px", background: C.green + "12", borderRadius: 5, border: `1px solid ${C.green}33` }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: C.green, marginBottom: 4 }}>Key Stat</div>
-          <div style={{ fontSize: 13, color: C.text }}>
-            If you invested $10,000 in the S&P 500 in 2000 (the worst possible timing — right before the dot-com crash) and held through <em>two</em> major crashes, by 2025 it would be worth roughly <strong style={{ color: C.green }}>$64,000</strong>. Selling during either crash would have locked in losses.
-          </div>
-        </div>
-        <div style={{ marginTop: 12, padding: "12px 16px", background: C.accent + "12", borderRadius: 5, border: `1px solid ${C.accent}33` }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: C.accent, marginBottom: 4 }}>The Cost of Missing the Best Days</div>
-          <div style={{ fontSize: 13, color: C.text }}>
-            Missing just the <strong>10 best days</strong> in the market over 20 years cuts your returns by more than half. Those best days almost always happen right after the worst days — so if you sell during a crash, you miss the recovery.
-          </div>
-        </div>
-      </div>
+      {/* Deployment plan, hold zone, and historical data are now in the Deployment sub-tab */}
 
       {/* Add holding */}
       <div style={s.card}>
@@ -2620,6 +3386,13 @@ function PortfolioTab({ data, setData, nwData, settings, rates, theme, hide }) {
           </div>
         )}
       </div>
+      </>}
+
+      {portSubTab === "alerts" && <PortfolioAlertsTab settings={settings} setSettings={setSettings} theme={theme} />}
+
+      {/* ═══ DEPLOYMENT PLAN SUB-TAB ═══ */}
+      {portSubTab === "deployment" && <DeploymentPlanTab data={data} setData={setData} nwData={nwData} enriched={enriched} allocRows={allocRows} totalVal={totalVal} rates={rates} theme={theme} hide={hide} />}
+
     </div>
   );
 }
@@ -2638,17 +3411,34 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
   const [uploadBucket, setUploadBucket] = useState("Opco");
   const [uploadAccount, setUploadAccount] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState({});
-  const [collapsedSections, setCollapsedSections] = useState({});
+  const [collapsedSections, setCollapsedSections] = useState({ income: true });
   const [showCharts, setShowCharts] = useState(false);
+  const [showSummary, setShowSummary] = useState(true);
+  const [expandedSummary, setExpandedSummary] = useState(false);
+  const [expandedTxId, setExpandedTxId] = useState(null);
   const [cfSubTab, setCfSubTab] = useState("transactions");
   const [filterAccountId, setFilterAccountId] = useState(null);
   const [rulesSearch, setRulesSearch] = useState("");
   const [rulesPage, setRulesPage] = useState(0);
   const [editingRule, setEditingRule] = useState(null);
   const [editingBudget, setEditingBudget] = useState(null);
+  const [filterCategory, setFilterCategory] = useState(null);
+  const [addingGoal, setAddingGoal] = useState(false);
+  const [goalCategory, setGoalCategory] = useState("");
+  const [goalAmount, setGoalAmount] = useState("");
+  const [goalNote, setGoalNote] = useState("");
+  const [filterBucket, setFilterBucket] = useState(null);
   const [newRule, setNewRule] = useState({ pattern: "", Opco: "", Holdco: "", Jon: "", Jacqueline: "" });
   const [txSearch, setTxSearch] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [editingSub, setEditingSub] = useState(null);
+  const [newSub, setNewSub] = useState({ name: "", amount: "", frequency: "monthly", bucket: "Opco", account: "", category: "" });
+  const [detectedSubs, setDetectedSubs] = useState(null); /* null = hidden, [] = no results, [...] = results */
+  const [subsAutoDetected, setSubsAutoDetected] = useState(false);
+  const [expandedSub, setExpandedSub] = useState(null); /* sub.id to show payment history */
+  const [plaidConnectStatus, setPlaidConnectStatus] = useState(null); // null | "linking" | "exchanging" | "syncing" | "done" | "error"
+  const [showAutoCat, setShowAutoCat] = useState(false);
+  const [autoCatSuggestions, setAutoCatSuggestions] = useState([]); // [{txId, description, bucket, type, currentCat, suggestedCat}]
 
   const viewBuckets = mainView === "Opco" ? ["Opco", "Holdco"] : mainView === "Personal" ? ["Jon", "Jacqueline"] : BUCKETS;
   const bucketAbbrev = { Opco: "Op", Holdco: "Hld", Jon: "Jn", Jacqueline: "Jq" };
@@ -2679,6 +3469,66 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
   const bankAccounts = data.bankAccounts || {};
   const budgetTargets = data.budgetTargets || {};
 
+  /* Migration: rename old categories + re-categorize Business Misc / Uncategorized.
+     Runs when _catVersion changes (bump to re-run after keyword updates). */
+  const CAT_VERSION = 10; /* bumped: remove seed data + refund detection + recategorize */
+  const WEAK_CATS = new Set(["Uncategorized", "Business Misc", "Personal Misc", "Bank Fees", "Business Purchases", "Business Meals & Entertainment"]);
+  const MOVING_CATS = new Set([...Object.values(TRANSFER_CATS).flat()]);
+  /* Seed/demo transaction descriptions to purge */
+  const SEED_DESCRIPTIONS = new Set([
+    "March e-commerce revenue", "Shopify", "Meta Ads", "Q1 dividend from Opco",
+    "Dividend to Holdco", "Personal dividend", "Dividend to Jacqueline",
+    "Save-On-Foods", "Gas", "Restaurant", "Mortgage payment", "New laptop",
+    "February e-commerce revenue", "Google Ads",
+  ]);
+  /* Only remove if description + amount + date all match seed data (avoid removing real transactions) */
+  const SEED_FINGERPRINTS = new Set([
+    "March e-commerce revenue|45000|2026-03-01", "Shopify|399|2026-03-05", "Meta Ads|3200|2026-03-10",
+    "Q1 dividend from Opco|25000|2026-03-15", "Dividend to Holdco|25000|2026-03-15",
+    "Personal dividend|8000|2026-03-20", "Dividend to Jacqueline|8000|2026-03-20",
+    "Save-On-Foods|187.5|2026-03-03", "Netflix|22.99|2026-03-07",
+    "Gas|95|2026-03-12", "Restaurant|120|2026-03-14", "BC Hydro|142|2026-03-01",
+    "Mortgage payment|3200|2026-03-01", "February e-commerce revenue|38000|2026-02-01",
+    "Google Ads|2800|2026-02-10", "New laptop|2199|2026-02-15",
+  ]);
+  useEffect(() => {
+    if (!txns.length || data._catVersion >= CAT_VERSION) return;
+    let changed = false;
+    /* Step 0: Remove seed/demo transactions */
+    const cleaned = txns.filter(t => {
+      const fp = `${t.description}|${t.amount}|${t.date}`;
+      if (SEED_FINGERPRINTS.has(fp)) { changed = true; return false; }
+      return true;
+    });
+    const migrated = cleaned.map(t => {
+      let cat = t.category;
+      let type = t.type;
+      /* Step 1: rename old category names */
+      if (CAT_RENAME[cat]) { cat = CAT_RENAME[cat]; changed = true; }
+      /* Step 2: re-categorize unreviewed transactions */
+      if (!t.reviewed) {
+        const guess = smartGuess(t.description || "", t.bucket, t.type);
+        if (guess && guess !== cat) {
+          const isMovingMoney = MOVING_CATS.has(guess);
+          if (isMovingMoney || WEAK_CATS.has(cat)) {
+            cat = guess; changed = true;
+          }
+        }
+        /* Step 3: Refund detection — if income but category is an expense category, flip to expense */
+        const finalType = detectRefund(type, cat, t.bucket);
+        if (finalType !== type) { type = finalType; changed = true; }
+      }
+      return (cat !== t.category || type !== t.type) ? { ...t, category: cat, type } : t;
+    });
+    setData(prev => ({
+      ...prev,
+      transactions: changed ? migrated : prev.transactions,
+      /* Also clean seed recurring/subscriptions */
+      ...(prev.recurring?.some(r => SEED_DESCRIPTIONS.has(r.description)) ? { recurring: prev.recurring.filter(r => !SEED_DESCRIPTIONS.has(r.description)) } : {}),
+      _catVersion: CAT_VERSION,
+    }));
+  }, []);
+
   const autoCategory = (desc, bucket, plaidCat = null) => {
     /* Tier 1: user-learned pattern rules */
     const key = desc.toLowerCase().trim();
@@ -2693,28 +3543,441 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
     return null;
   };
 
+  /* Smart keyword guesses for common merchants (tier 3 fallback) */
+  const KEYWORD_GUESSES = [
+    { kw: ["amazon", "amzn"], biz: "Business Purchases", personal: "Shopping" },
+    { kw: ["walmart", "costco", "save-on", "saveon", "superstore", "no frills", "loblaws", "sobeys", "safeway", "metro", "freshco", "whole foods", "t&t"], personal: "Groceries" },
+    { kw: ["starbucks", "tim hortons", "tims"], personal: "Coffee Shops", biz: "Business Meals & Entertainment" },
+    { kw: ["mcdonald", "subway", "a&w", "wendys", "wendy's", "burger king", "popeyes", "chipotle", "panera"], personal: "Food Delivery", biz: "Business Meals & Entertainment" },
+    { kw: ["restaurant", "bistro", "grill", "sushi", "ramen", "pho", "pizza", "steakhouse", "bar ", "pub ", "cafe", "diner", "kitchen", "eatery", "bowl", "taco", "thai", "wok", "noodle", "bbq", "barbeque"], personal: "Food Delivery", biz: "Business Meals & Entertainment" },
+    { kw: ["uber eats", "doordash", "skip the dishes", "skipthedishes", "fantuan"], personal: "Food Delivery", biz: "Business Meals & Entertainment" },
+    { kw: ["netflix", "spotify", "disney+", "disney plus", "apple.com/bill", "hulu", "crave", "paramount", "youtube premium", "beatport", "audible", "kindle", "twitch", "crunchyroll", "dazn", "tidal", "soundcloud", "siriusxm", "sirius xm", "siriusxm.ca"], personal: "Entertainment", biz: "Business Subscription/SaaS" },
+    { kw: ["shopify"], biz: "Business Subscription/SaaS" },
+    { kw: ["telus", "rogers", "bell canada", "shaw", "fido", "koodo", "freedom mobile", "virgin mobile"], biz: "Business Bills", personal: "Business Bills" },
+    { kw: ["google ads", "facebook", "meta ads", "fb ads", "tiktok ads"], biz: "Business Advertising" },
+    { kw: ["gas", "shell", "petro", "esso", "chevron", "pioneer", "husky", "ultramar", "co-op gas"], personal: "Gas/Transportation", biz: "Business Auto" },
+    { kw: ["cab ", "cabs", "taxi", "taxicab", "kelowna cab", "yellow cab", "co-op taxi"], biz: "Business Travel", personal: "Gas/Transportation" },
+    { kw: ["uber trip", "lyft"], personal: "Gas/Transportation", biz: "Business Travel" },
+    { kw: ["parking", "impark", "easypark", "paybyphone"], biz: "Business Auto", personal: "Gas/Transportation" },
+    { kw: ["icbc", "autoplan"], biz: "Business Auto", personal: "Car Maintenance" },
+    { kw: ["car wash", "andres car wash", "andres carwash"], personal: "Car Maintenance" },
+    { kw: ["bc hydro", "fortis", "hydro"], personal: "House Fortis" },
+    { kw: ["rogers", "telus", "bell", "fido", "koodo", "freedom mobile", "shaw"], biz: "Business Misc", personal: "Personal Misc" },
+    { kw: ["hotel", "airbnb", "booking.com", "marriott", "hilton", "expedia", "surfjack", "kahala", "hyatt", "sheraton", "westin", "ritz", "four seasons", "fairmont"], biz: "Business Travel", personal: "Hotel/Accommodation" },
+    { kw: ["airline", "air canada", "westjet", "united", "delta", "american air", "flair", "alaska air", "hawaiian air", "southwest"], biz: "Business Travel", personal: "Flights" },
+    { kw: ["hertz", "avis", "budget rent", "enterprise rent", "national car", "turo"], biz: "Business Travel", personal: "Car Rental" },
+    { kw: ["alamoana", "llhawaii", "waikiki", "honolulu"], biz: "Business Travel", personal: "Hotel/Accommodation" },
+    { kw: ["stripe", "square"], biz: "Other Income" },
+    { kw: ["native path"], biz: "Contracts" },
+    { kw: ["bank fee", "monthly fee", "service charge", "nsf"], biz: "Bank Fees", personal: "Personal Misc" },
+    /* transfer/e-transfer/CC payments now handled by bookkeeper tier in smartGuess */
+    { kw: ["interest charge", "interest -"], personal: "Personal Misc", biz: "Bank Fees" },
+    { kw: ["sephora", "winners", "homesense", "marshalls", "hudson's bay", "hbc", "nordstrom", "h&m", "zara", "lululemon", "nike", "adidas", "old navy", "gap"], personal: "Shopping" },
+    { kw: ["shoppers", "shoppers drug mart", "sdm", "pharma", "drug mart", "rexall", "london drugs"], personal: "Personal Care" },
+    { kw: ["home depot", "lowes", "rona", "canadian tire", "ct "], personal: "House Misc" },
+    { kw: ["bookkeeping", "accounting", "gd bookkeep"], biz: "Business Staff", Holdco: "Business Staff" },
+    { kw: ["pay-file", "payroll", "adp", "ceridian", "wagepoint"], biz: "Business Staff", Holdco: "Business Admin & Professional" },
+    /* FX/transfers/dividends/misc payments now handled by bookkeeper tier in smartGuess */
+    { kw: ["fx fee", "conversion fee", "fx markup"], biz: "Bank Fees" },
+    { kw: ["insurance", "manulife", "sunlife", "great-west"], biz: "Business Misc", personal: "Personal Misc" },
+    { kw: ["aws", "amazon web services", "digitalocean", "heroku", "vercel", "netlify", "cloudflare", "github", "gitlab", "bitbucket"], biz: "Business Subscription/SaaS" },
+    { kw: ["canva", "adobe", "figma", "notion", "slack", "zoom", "microsoft", "google workspace", "quickbooks", "xero", "dashlane", "dashla", "1password", "lastpass", "bitwarden"], biz: "Business Subscription/SaaS" },
+    { kw: ["openai", "claude", "anthropic", "chatgpt", "claude.ai", "groq", "heygen", "midjourney", "runway", "replicate", "perplexity", "eleven labs", "elevenlabs", "descript"], biz: "Business Subscription/SaaS" },
+    { kw: ["privateinte", "p.skool", "skool", "lunchmoney", "workspace thejonma"], biz: "Business Subscription/SaaS" },
+    { kw: ["apple"], biz: "Business Subscription/SaaS", personal: "Personal Misc" },
+    { kw: ["course", "udemy", "skillshare", "masterclass"], biz: "Business Education", personal: "Entertainment" },
+    { kw: ["dropbox", "icloud", "google one"], biz: "Business Subscription/SaaS", personal: "Personal Misc" },
+  ];
+
+  const smartGuess = (desc, bucket, type) => {
+    const low = desc.toLowerCase();
+    const isBiz = bucket === "Opco" || bucket === "Holdco";
+    const validCats = [...(DEFAULT_TAX_CATS[bucket] || []), ...(TRANSFER_CATS[bucket] || []), ...(INCOME_CATS[bucket] || [])];
+    const tryReturn = (cat) => (cat && validCats.includes(cat)) ? cat : null;
+
+    /* ── Tier 0: Bookkeeper — structural banking patterns (moving money, NOT expenses) ──
+       These are transfers between accounts, CC payments, FX conversions, dividends.
+       They should NEVER appear as income or expenses in the summary. */
+
+    /* Foreign exchange = currency conversion between own CAD/USD accounts */
+    if (low.includes("foreign exchange") || low.includes("fx exchange") || low.includes("currency exchange") || low.includes("currency conversion")) {
+      return tryReturn(bucket === "Holdco" ? "Moving Money Holdco" : bucket === "Opco" ? "Moving Money Business" : "Moving Money Personal");
+    }
+    /* Scheduled payments / credit memos with FT reference = inter-account transfers */
+    if ((low.includes("scheduled payment") || low.includes("credit memo")) && /ft\d{5,}/.test(low)) {
+      return tryReturn(bucket === "Holdco" ? "Moving Money Holdco" : bucket === "Opco" ? "Moving Money Business" : "Moving Money Personal");
+    }
+    /* Funds transfer credit/debit = moving money between accounts */
+    if (low.includes("funds transfer")) {
+      return tryReturn(bucket === "Holdco" ? "Moving Money Holdco" : bucket === "Opco" ? "Moving Money Business" : "Moving Money Personal");
+    }
+    /* Bank-to-bank transfers (internal, between own accounts — NOT e-transfers to people) */
+    if ((low.includes("online banking transfer") || low.includes("bank transfer") || low.includes("eft -") || low.includes("eft payment") || low.includes("tfr-") || low.includes("trf-")) && !low.includes("e-transfer")) {
+      return tryReturn(bucket === "Holdco" ? "Moving Money Holdco" : bucket === "Opco" ? "Moving Money Business" : "Moving Money Personal");
+    }
+    /* Online transfers sent/received/to/from between own accounts */
+    if (low.includes("online transfer sent") || low.includes("online transfer -") || low.includes("online transfer received") ||
+        low.includes("online transfer to ") || low.includes("online transfer from ") ||
+        low.includes("transfer to deposit") || low.includes("transfer from deposit") ||
+        low.includes("transfer to savings") || low.includes("transfer from savings") ||
+        low.includes("transfer to chequing") || low.includes("transfer from chequing")) {
+      return tryReturn(bucket === "Holdco" ? "Moving Money Holdco" : bucket === "Opco" ? "Moving Money Business" : "Moving Money Personal");
+    }
+    /* E-transfers / Interac sent = moving money out */
+    if ((low.includes("e-transfer") || low.includes("etransfer") || low.includes("interac")) && (low.includes("sent") || low.includes("request"))) {
+      return tryReturn(bucket === "Holdco" ? "Moving Money Holdco" : bucket === "Opco" ? "Moving Money Business" : "Moving Money Personal");
+    }
+    /* E-transfers received = income (from external person/entity) */
+    if ((low.includes("e-transfer") || low.includes("etransfer") || low.includes("interac")) && (low.includes("received") || low.includes("fulfilled") || low.includes("auto deposit"))) {
+      return tryReturn("Other Income");
+    }
+    /* CC payments ("PAYMENT - THANK YOU", Visa/MC/Amex payments) */
+    if (low.includes("payment - thank you") || low.includes("payment received") || low.includes("pre-authorized payment") || low.includes("autopay") ||
+        (low.includes("payment") && (low.includes("visa") || low.includes("mastercard") || low.includes("amex") || low.includes("cibc")))) {
+      return tryReturn("Moving Money CC Payments");
+    }
+    /* Dividends & distributions */
+    if (low.includes("dividend") || low.includes("dist.") || low.includes("distribution")) {
+      if (bucket === "Holdco") return tryReturn("Hold Co Dividends") || tryReturn("Investment Income");
+      if (bucket === "Jon" || bucket === "Jacqueline") return tryReturn("Dividends from Holdco") || tryReturn("Other Income");
+      return tryReturn("Other Income");
+    }
+    /* Misc payment (bank misc like payroll files) */
+    if (low.includes("misc payment pay-file") || low.includes("misc payment payroll")) {
+      return tryReturn("Business Staff");
+    }
+    if (low.includes("misc payment fee") || low.includes("misc payment -")) {
+      return tryReturn("Bank Fees");
+    }
+
+    /* ── Tier 1: Keyword matching ── */
+    for (const rule of KEYWORD_GUESSES) {
+      for (const k of rule.kw) {
+        if (low.includes(k)) {
+          const cat = rule[bucket] || (isBiz ? (rule.biz || rule.personal) : (rule.personal || rule.biz));
+          if (cat && validCats.includes(cat)) return cat;
+        }
+      }
+    }
+    return null;
+  };
+
+  const [aiCatStatus, setAiCatStatus] = useState(null); /* null | "loading" | "done" | "fallback" */
+
+  const generateAutoCatSuggestions = async () => {
+    /* Run on ALL unreviewed transactions — catches miscategorized ones, not just "Uncategorized" */
+    const unreviewed = txns.filter(t => !t.reviewed);
+    if (!unreviewed.length) { setShowAutoCat(true); setAutoCatSuggestions([]); return; }
+
+    /* Step 1: Run local smartGuess first (instant, catches structural patterns) */
+    const localSuggestions = unreviewed.map(t => {
+      let suggested = t.category;
+      const kwGuess = smartGuess(t.description || "", t.bucket, t.type);
+      if (kwGuess && kwGuess !== suggested) { suggested = kwGuess; }
+      if (suggested === "Uncategorized") {
+        const ruleMatch = autoCategory(t.description, t.bucket, t.plaidCategory);
+        if (ruleMatch) { suggested = ruleMatch; }
+      }
+      return { ...t, localSuggested: suggested };
+    });
+
+    /* Step 2: Send remaining unknowns to AI for smart categorization */
+    const needsAI = localSuggestions.filter(t => t.localSuggested === t.category || t.localSuggested === "Uncategorized" || t.localSuggested === "Business Misc" || t.localSuggested === "Personal Misc");
+
+    let aiMap = {}; /* txId → AI-suggested category */
+    if (needsAI.length > 0) {
+      setAiCatStatus("loading");
+      try {
+        /* Build category lists per bucket */
+        const categories = {};
+        BUCKETS.forEach(b => {
+          categories[b] = [
+            ...(DEFAULT_TAX_CATS[b] || []),
+            ...(TRANSFER_CATS[b] || []),
+            ...(INCOME_CATS[b] || []),
+          ];
+        });
+        const res = await fetch(`${PLAID_SERVER}/api/categorize`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            transactions: needsAI.map(t => ({
+              description: t.description, amount: t.amount,
+              currency: t.currency || "CAD", bucket: t.bucket, type: t.type,
+            })),
+            categories,
+          }),
+        });
+        if (res.ok) {
+          const data2 = await res.json();
+          if (data2.suggestions) {
+            data2.suggestions.forEach((s2, idx) => {
+              if (s2.category && needsAI[s2.index - 1]) {
+                const t = needsAI[s2.index - 1];
+                const validCats = [...(DEFAULT_TAX_CATS[t.bucket] || []), ...(TRANSFER_CATS[t.bucket] || []), ...(INCOME_CATS[t.bucket] || [])];
+                if (validCats.includes(s2.category)) {
+                  aiMap[t.id] = s2.category;
+                }
+              }
+            });
+          }
+          setAiCatStatus("done");
+        } else {
+          console.warn("AI categorization unavailable, using keyword fallback");
+          setAiCatStatus("fallback");
+        }
+      } catch (err) {
+        console.warn("AI categorization failed:", err.message, "— using keyword fallback");
+        setAiCatStatus("fallback");
+      }
+    } else {
+      setAiCatStatus("done");
+    }
+
+    /* Merge: AI results override local for unknowns, local wins for structural matches */
+    const suggestions = localSuggestions.map(t => {
+      let suggested = aiMap[t.id] || t.localSuggested;
+      return {
+        txId: t.id, description: t.description, bucket: t.bucket,
+        type: t.type, amount: t.amount, currency: t.currency || "CAD",
+        date: t.date, currentCat: t.category, suggestedCat: suggested,
+      };
+    }).filter(s => s.suggestedCat !== s.currentCat);
+
+    setAutoCatSuggestions(suggestions);
+    setShowAutoCat(true);
+  };
+
+  const applyAutoCatSuggestions = () => {
+    const newRules = { ...catRules };
+    const txMap = {};
+    autoCatSuggestions.forEach(s => { txMap[s.txId] = s.suggestedCat; });
+    const updatedTxns = txns.map(t => {
+      if (txMap[t.id]) {
+        const newCat = txMap[t.id];
+        /* Learn the rule if category changed from Uncategorized */
+        if (t.category !== newCat && newCat !== "Uncategorized") {
+          const key = t.description.toLowerCase().trim();
+          if (key) { newRules[key] = { ...(newRules[key] || {}), [t.bucket]: newCat }; }
+        }
+        return { ...t, category: newCat, reviewed: true };
+      }
+      return t;
+    });
+    setData({ ...data, transactions: updatedTxns, catRules: newRules });
+    setShowAutoCat(false);
+    setAutoCatSuggestions([]);
+  };
+
   const detectTransfers = (transactions) => {
     return transactions.map(tx => {
-      if (tx.isTransfer) return tx;
-      const matches = transactions.filter(other =>
-        other.id !== tx.id && other.bucket !== tx.bucket &&
-        Math.abs(other.amount - tx.amount) < 0.01 &&
-        other.date === tx.date && other.type !== tx.type
-      );
-      if (matches.length > 0) return { ...tx, isTransfer: true, transferMatch: matches[0].bucket };
-      return tx;
+      const low = (tx.description || "").toLowerCase();
+      const cat = tx.category || "";
+      const isMoving = allTransferCats.has(cat);
+
+      /* Cross-reference: find matching transaction in another bucket (same amount, same date, opposite type) */
+      let transferMatch = tx.transferMatch || null;
+      let transferNote = tx.transferNote || null;
+      if (!tx.isTransfer && !transferMatch) {
+        const matches = transactions.filter(other =>
+          other.id !== tx.id && other.bucket !== tx.bucket &&
+          Math.abs(other.amount - tx.amount) < 0.01 &&
+          other.date === tx.date && other.type !== tx.type
+        );
+        if (matches.length > 0) transferMatch = matches[0].bucket;
+      }
+
+      /* Generate transfer note for moving money transactions */
+      if (isMoving || transferMatch) {
+        const from = tx.type === "expense" ? tx.bucket : (transferMatch || "?");
+        const to = tx.type === "income" ? tx.bucket : (transferMatch || "?");
+
+        if (cat.includes("CC Payment")) {
+          transferNote = `${tx.bucket} → Visa Payment`;
+        } else if (cat.includes("Hold Co Dividends") || cat.includes("Dividends from Opco")) {
+          transferNote = `${tx.bucket} → Dividend`;
+        } else if (cat.includes("Dividends from Holdco")) {
+          transferNote = `Holdco → ${tx.bucket} Dividend`;
+        } else if (low.includes("foreign exchange") || low.includes("currency")) {
+          const curr = tx.currency || "CAD";
+          transferNote = `${tx.bucket} ${curr === "USD" ? "CAD → USD" : "USD → CAD"} FX`;
+        } else if (transferMatch) {
+          transferNote = tx.type === "expense" ? `${tx.bucket} → ${transferMatch}` : `${from} → ${tx.bucket}`;
+        } else if (low.includes("online banking transfer") || low.includes("funds transfer")) {
+          /* Try to identify account from description (last 4 digits) */
+          const acctMatch = (tx.description || "").match(/[-–]\s*(\d{4})\s*$/);
+          transferNote = tx.type === "expense"
+            ? `${tx.bucket} → Acct ${acctMatch ? acctMatch[1] : "?"}`
+            : `Acct ${acctMatch ? acctMatch[1] : "?"} → ${tx.bucket}`;
+        } else if (low.includes("e-transfer") || low.includes("etransfer")) {
+          const nameMatch = (tx.description || "").match(/(?:sent|received|fulfilled)\s+(.+)/i);
+          const name = nameMatch ? nameMatch[1].trim().split(/\s+/).slice(0, 2).join(" ") : null;
+          transferNote = tx.type === "expense"
+            ? `${tx.bucket} → ${name || "e-Transfer"}`
+            : `${name || "e-Transfer"} → ${tx.bucket}`;
+        } else if (low.includes("scheduled payment") || low.includes("credit memo")) {
+          transferNote = tx.type === "expense" ? `${tx.bucket} → Scheduled` : `Credit → ${tx.bucket}`;
+        } else {
+          transferNote = tx.type === "expense" ? `${tx.bucket} → Out` : `In → ${tx.bucket}`;
+        }
+      }
+
+      return {
+        ...tx,
+        isTransfer: !!(isMoving || transferMatch),
+        transferMatch: transferMatch || tx.transferMatch,
+        transferNote,
+      };
     });
   };
 
+  const allTransferCats = new Set(Object.values(TRANSFER_CATS).flat());
   const allTxns = useMemo(() => detectTransfers(txns), [txns]);
+
+  /* ── Detect recurring transactions (component-level for useEffect access) ── */
+  /* Normalize merchant name for subscription matching */
+  const normalizeMerchant = useCallback((desc) => {
+    let norm = (desc || "").toLowerCase()
+      .replace(/\d{4,}/g, "").replace(/#\w+/g, "").replace(/\s+/g, " ").trim();
+    norm = norm.replace(/^(recurring|pre-authorized|preauth|pos|online purchase|misc payment)\s*/i, "").trim();
+    return norm;
+  }, []);
+
+  /* Known billing frequencies for common merchants */
+  const KNOWN_FREQUENCIES = {
+    "fortisbc": "quarterly", "fortis bc": "quarterly", "fortis b.c": "quarterly", "fortisbc energy": "quarterly",
+    "icbc": "annual", "autoplan": "annual",
+    "property tax": "annual", "prop tax": "annual", "commercial taxes": "annual",
+    "home insurance": "annual", "house insurance": "annual",
+    "car insurance": "annual", "auto insurance": "annual",
+    "strata": "monthly", "condo fees": "monthly",
+    "bc hydro": "monthly", "hydro": "monthly",
+  };
+
+  /* Known subscription categories — auto-correct misclassified subs */
+  const KNOWN_SUB_CATEGORIES = {
+    /* Telecom / Internet / Phone */
+    "telus": "Business Bills", "rogers": "Business Bills",
+    "bell": "Business Bills", "shaw": "Business Bills",
+    "fido": "Business Bills", "koodo": "Business Bills",
+    "freedom mobile": "Business Bills", "virgin mobile": "Business Bills",
+    /* SaaS / Software */
+    "payoneer": "Business Subscription/SaaS", "stripe": "Business Subscription/SaaS",
+    "shopify": "Business Subscription/SaaS", "slack": "Business Subscription/SaaS",
+    "canva": "Business Subscription/SaaS", "openai": "Business Subscription/SaaS",
+    "github": "Business Subscription/SaaS", "vercel": "Business Subscription/SaaS",
+    "railway": "Business Subscription/SaaS", "supadat": "Business Subscription/SaaS",
+    "frame.io": "Business Subscription/SaaS", "wispr": "Business Subscription/SaaS",
+    "heygen": "Business Subscription/SaaS", "groq": "Business Subscription/SaaS",
+    "siriusxm": "Business Subscription/SaaS", "privateinte": "Business Subscription/SaaS",
+    "skool": "Business Subscription/SaaS", "p.skool": "Business Subscription/SaaS",
+    "workspace": "Business Subscription/SaaS",
+    /* Entertainment (personal) */
+    "netflix": "Entertainment", "spotify": "Entertainment",
+    "disney": "Entertainment", "apple tv": "Entertainment",
+    /* Insurance / Car — fixed costs */
+    "icbc": "Business Auto",
+    /* Utilities */
+    "fortisbc": "House Fortis", "fortis bc": "House Fortis", "fortisbc energy": "House Fortis",
+    "bc hydro": "House Fortis",
+  };
+
+  const detectRecurring = useCallback(() => {
+    const existingSubs = data.subscriptions || [];
+    const expTxns = txns.filter(t => t.type === "expense" && !allTransferCats.has(t.category));
+    const merchantMap = {};
+    expTxns.forEach(t => {
+      const norm = normalizeMerchant(t.description);
+      if (norm.length < 3) return;
+      if (!merchantMap[norm]) merchantMap[norm] = [];
+      merchantMap[norm].push(t);
+    });
+    const skipPatterns = ["transfer", "e-transfer", "etransfer", "foreign exchange",
+      "nsf", "overdraft", "interest @", "interest charge", "interest -", "purchase interest",
+      "service fee", "monthly fee", "monthly plan fee", "payment - thank you",
+      "funds transfer", "br to br", "branch to branch", "commercial taxes",
+      "mortgage", "scheduled payment", "loan payment", "banking fee", "account fee",
+      "doordash", "uber eats", "skip the dishes", "grubhub", "instacart",
+      "ramen", "sushi", "bistro", "chopsticks", "restaurant", "grill",
+      "noodle", "pizza", "burger", "taco", "pho ", "wok ", "opa of ", "kitchen",
+      /* Not subscriptions — variable recurring charges */
+      "paybyphone", "pay by phone", "parking", "car wash", "andres car wash",
+      "opa", "greek", "gas station", "shell", "esso", "petro", "chevron", "chv",
+      "7-eleven", "7 eleven", "circle k", "husky", "co-op gas", "costco gas"];
+    const detected = [];
+    const existingNames = new Set(existingSubs.map(s2 => s2.name.toLowerCase()));
+    Object.entries(merchantMap).forEach(([merchant, charges]) => {
+      if (charges.length < 2) return;
+      if (existingNames.has(merchant)) return;
+      if (skipPatterns.some(p => merchant.includes(p))) return;
+      if (charges.every(c => allTransferCats.has(c.category))) return;
+      const foodCats = ["restaurants", "coffee shops", "groceries", "dining", "fast food"];
+      const mostCommonCat = charges.map(c => c.category?.toLowerCase() || "").filter(Boolean);
+      if (mostCommonCat.length > 0 && mostCommonCat.every(c => foodCats.some(f => c.includes(f)))) return;
+      const maxAmt = Math.max(...charges.map(c => c.amount));
+      if (maxAmt > 5000) return;
+      const sorted2 = [...charges].sort((a, b) => new Date(a.date) - new Date(b.date));
+      const amounts = sorted2.map(c => c.amount);
+      const dates = sorted2.map(c => new Date(c.date));
+      const sortedAmts = [...amounts].sort((a, b) => a - b);
+      const median = sortedAmts[Math.floor(sortedAmts.length / 2)];
+      const consistent = amounts.filter(a => Math.abs(a - median) / median < 0.25).length >= amounts.length * 0.5;
+      if (!consistent) return;
+      const intervals = [];
+      for (let i = 1; i < dates.length; i++) intervals.push((dates[i] - dates[i - 1]) / (1000 * 60 * 60 * 24));
+      if (intervals.length === 0) return;
+      const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      /* Check known frequencies first */
+      const knownFreq = Object.entries(KNOWN_FREQUENCIES).find(([kw]) => merchant.includes(kw));
+      let frequency = knownFreq ? knownFreq[1] : "monthly";
+      if (!knownFreq) {
+        if (avgInterval > 300) frequency = "annual";
+        else if (avgInterval > 70) frequency = "quarterly";
+        else if (avgInterval < 14) return;
+      }
+      if (frequency === "monthly" && charges.length < 3 && !knownFreq) return;
+      /* Use most recent payment amount (not average) — avoids misleading totals
+         when different charge types from same merchant get grouped (e.g. ICBC $1,728 insurance + $75 license) */
+      const latestAmount = sorted2[sorted2.length - 1].amount;
+      const bucket = sorted2[0].bucket;
+      const category = sorted2[0].category !== "Uncategorized" ? sorted2[0].category : "";
+      const lastDate = sorted2[sorted2.length - 1].date;
+      detected.push({
+        name: merchant.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" "),
+        amount: Math.round(latestAmount * 100) / 100,
+        frequency, bucket, category, occurrences: charges.length, lastDate,
+        _matchKey: merchant, /* preserve normalized key for matching payment history */
+      });
+    });
+    return detected.sort((a, b) => b.occurrences - a.occurrences);
+  }, [txns, data.subscriptions, normalizeMerchant]);
+
+  /* Auto-detect subscriptions when switching to the tab */
+  useEffect(() => {
+    if (cfSubTab === "subscriptions" && txns.length > 0 && detectedSubs === null) {
+      const detected = detectRecurring();
+      if (detected.length > 0) {
+        setDetectedSubs(detected.map(d => ({ ...d, selected: true })));
+      } else {
+        setDetectedSubs([]);
+      }
+    }
+  }, [cfSubTab]);
+  const isTransferTx = (t) => t.isTransfer || allTransferCats.has(t.category);
 
   /* filter by view + type + period */
   const filtered = allTxns.filter(t => {
     if (!viewBuckets.includes(t.bucket)) return false;
+    if (filterBucket && t.bucket !== filterBucket) return false;
     if (filterAccountId && t.plaidAccountId !== filterAccountId) return false;
+    if (filterCategory === "_uncatIncome") {
+      /* Special filter: income not matching any INCOME_GROUPS category, excluding transfers */
+      const knownIncomeCats = new Set(Object.values(INCOME_GROUPS).flatMap(g => Object.values(g).flat()));
+      if (!(t.type === "income" && !knownIncomeCats.has(t.category) && !allTransferCats.has(t.category))) return false;
+    } else if (filterCategory && t.category !== filterCategory) return false;
     if (filterType === "income" && t.type !== "income") return false;
     if (filterType === "expense" && t.type !== "expense") return false;
-    if (filterType === "transfers" && !t.isTransfer) return false;
+    if (filterType === "transfers" && !t.isTransfer && !allTransferCats.has(t.category)) return false;
     if (txSearch && !(t.description || "").toLowerCase().includes(txSearch.toLowerCase()) && !(t.category || "").toLowerCase().includes(txSearch.toLowerCase())) return false;
     const mk = toMonthKey(t.date);
     if (period === "monthly" && mk !== viewMonth) return false;
@@ -2728,7 +3991,7 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
     return true;
   });
 
-  const nonTransfer = filtered.filter(t => !t.isTransfer);
+  const nonTransfer = filtered.filter(t => !isTransferTx(t));
   const totalIncome = nonTransfer.filter(t => t.type === "income").reduce((s2, t) => s2 + toBase(t.amount, t.currency || "CAD", rates), 0);
   const totalExpenses = nonTransfer.filter(t => t.type === "expense").reduce((s2, t) => s2 + toBase(t.amount, t.currency || "CAD", rates), 0);
   const netFlow = totalIncome - totalExpenses;
@@ -2790,7 +4053,7 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
     viewBuckets.forEach(bucket => {
       result[bucket] = {};
       (TRANSFER_CATS[bucket] || []).forEach(cat => {
-        result[bucket][cat] = filtered.filter(t => t.isTransfer && t.bucket === bucket && t.category === cat)
+        result[bucket][cat] = filtered.filter(t => isTransferTx(t) && t.bucket === bucket && t.category === cat)
           .reduce((s2, t) => s2 + toBase(t.amount, t.currency || "CAD", rates), 0);
       });
     });
@@ -2807,15 +4070,24 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
       .reduce((s2, t) => s2 + toBase(t.amount, t.currency || "CAD", rates), 0);
   }, [nonTransfer, viewBuckets, rates]);
 
+  /* Detect refunds: if a transaction is marked as income but the category is an expense category,
+     it's a refund — flip it to expense so it reduces the correct expense bucket */
+  const allExpenseCats = new Set(Object.values(EXPENSE_CATS).flatMap(groups => Object.values(groups).flat()));
+  const detectRefund = (type, cat, bucket) => {
+    if (type === "income" && allExpenseCats.has(cat)) return "expense";
+    return type;
+  };
+
   const handleCSVImport = (rows, bucket) => {
     const mapped = rows.map(r => {
       const amt = parseFloat(r.amount || r.debit || r.credit || r.value || 0);
       const desc = r.description || r.memo || r.name || r.payee || "";
       const isIncome = amt < 0 || (r.type || "").toLowerCase().includes("income") || (r.type || "").toLowerCase().includes("credit");
-      const cat = autoCategory(desc, bucket) || (isIncome ? "Other Income" : "Uncategorized");
+      const cat = autoCategory(desc, bucket) || smartGuess(desc, bucket, isIncome ? "income" : "expense") || (isIncome ? "Other Income" : "Uncategorized");
+      const finalType = detectRefund(isIncome ? "income" : "expense", r.category || cat, bucket);
       return {
-        id: uid(), date: r.date || r.transaction_date || new Date().toISOString().slice(0, 10),
-        bucket, type: isIncome ? "income" : "expense",
+        id: uid(), source: "csv", date: r.date || r.transaction_date || new Date().toISOString().slice(0, 10),
+        bucket, type: finalType,
         category: r.category || cat, description: desc,
         amount: Math.abs(amt), currency: (r.currency || "CAD").toUpperCase(),
       };
@@ -2833,7 +4105,7 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
   const recategorize = (txId, newCat) => {
     const tx = txns.find(t => t.id === txId);
     if (!tx) return;
-    const updated = txns.map(t => t.id === txId ? { ...t, category: newCat } : t);
+    const updated = txns.map(t => t.id === txId ? { ...t, category: newCat, reviewed: true } : t);
     const key = tx.description.toLowerCase().trim();
     if (key) {
       const newRules = { ...catRules, [key]: { ...(catRules[key] || {}), [tx.bucket]: newCat } };
@@ -2848,30 +4120,46 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
   /* ── Plaid transaction import ── */
   const importPlaidTransactions = async (connId) => {
     const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    const start = "2026-01-01";
     const end = now.toISOString().slice(0, 10);
-    const res = await fetch(`${PLAID_SERVER}/api/plaid/transactions/${connId}`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ startDate: start, endDate: end }),
+    let plaidTxns;
+    try {
+      const res = await fetch(`${PLAID_SERVER}/api/plaid/transactions/${connId}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ startDate: start, endDate: end }),
+      });
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+      const json = await res.json();
+      plaidTxns = json.transactions;
+    } catch (err) {
+      console.error("Plaid fetch failed for connection " + connId + ":", err);
+      return 0; /* return 0 — existing data is untouched */
+    }
+    if (!plaidTxns || !Array.isArray(plaidTxns)) return 0;
+    let addedCount = 0;
+    setData(prev => {
+      const prevTxns = prev.transactions || [];
+      const existing = new Set(prevTxns.filter(t => t.plaidId).map(t => t.plaidId));
+      const prevAccts = prev.bankAccounts || {};
+      const mapped = plaidTxns.filter(t => !t.pending && !existing.has(t.id)).map(t => {
+        const acct = prevAccts[t.accountId];
+        if (!acct || !acct.enabled || !acct.bucket) return null;
+        const bucket = acct.bucket;
+        const isIncome = t.amount < 0;
+        const cat = autoCategory(t.name, bucket, t.category) || smartGuess(t.name, bucket, isIncome ? "income" : "expense") || (isIncome ? "Other Income" : "Uncategorized");
+        const finalType = detectRefund(isIncome ? "income" : "expense", cat, bucket);
+        return {
+          id: uid(), plaidId: t.id, plaidAccountId: t.accountId, plaidCategory: t.category,
+          source: "plaid", date: t.date, bucket,
+          type: finalType,
+          category: cat, description: t.name,
+          amount: Math.abs(t.amount), currency: t.currency || "CAD",
+        };
+      }).filter(Boolean);
+      addedCount = mapped.length;
+      return { ...prev, transactions: [...prevTxns, ...mapped] };
     });
-    const { transactions: plaidTxns } = await res.json();
-    const existing = new Set(txns.filter(t => t.plaidId).map(t => t.plaidId));
-    const mapped = (plaidTxns || []).filter(t => !t.pending && !existing.has(t.id)).map(t => {
-      const acct = bankAccounts[t.accountId];
-      if (!acct || !acct.enabled || !acct.bucket) return null;
-      const bucket = acct.bucket;
-      const isIncome = t.amount < 0;
-      const cat = autoCategory(t.name, bucket, t.category) || (isIncome ? "Other Income" : "Uncategorized");
-      return {
-        id: uid(), plaidId: t.id, plaidAccountId: t.accountId, plaidCategory: t.category,
-        source: "plaid", date: t.date, bucket,
-        type: isIncome ? "income" : "expense",
-        category: cat, description: t.name,
-        amount: Math.abs(t.amount), currency: t.currency || "CAD",
-      };
-    }).filter(Boolean);
-    setData({ ...data, transactions: [...txns, ...mapped] });
-    return mapped.length;
+    return addedCount;
   };
 
   /* ── Rule CRUD helpers ── */
@@ -2922,33 +4210,49 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
 
   return (
     <div>
-      {/* Controls bar — single line */}
-      <div style={{ display: "flex", alignItems: "center", gap: 0, marginBottom: 14, borderBottom: `1px solid ${C.border}` }}>
-        {["transactions", "accounts", "rules"].map(tab => (
-          <button key={tab} onClick={() => setCfSubTab(tab)}
-            style={{ background: "transparent", border: "none", color: cfSubTab === tab ? C.text : C.muted, fontWeight: cfSubTab === tab ? 700 : 400, fontSize: 13, padding: "10px 16px", cursor: "pointer", borderBottom: cfSubTab === tab ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}>
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
-          </button>
-        ))}
-        {filterAccountId && (
-          <span onClick={() => setFilterAccountId(null)}
-            style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: C.accent + "22", color: C.accent, cursor: "pointer", fontWeight: 600, marginLeft: 8 }}>
-            {bankAccounts[filterAccountId]?.name || "Account"} &times;
-          </span>
-        )}
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, paddingBottom: 6 }}>
-          {cfSubTab === "transactions" && <>
-            <input style={{ ...s.input, width: 160, fontSize: 12, padding: "5px 10px" }} placeholder="Search..." value={txSearch} onChange={e => setTxSearch(e.target.value)} />
-            <input type="month" style={{ ...s.input, width: 130, fontSize: 12, padding: "5px 8px" }} value={viewMonth} onChange={e => setViewMonth(e.target.value)} />
-            <button onClick={() => setShowFilters(p => !p)}
-              style={{ background: "transparent", border: `1px solid ${showFilters || filterType !== "all" || period !== "monthly" ? C.accent : C.border}`, borderRadius: 5, color: showFilters || filterType !== "all" || period !== "monthly" ? C.accent : C.muted, fontSize: 11, padding: "5px 10px", cursor: "pointer" }}>
-              Filters{filterType !== "all" || period !== "monthly" ? " ●" : ""}
-            </button>
-          </>}
+      {/* Controls bar — tabs + controls top row, filter badges below */}
+      <div style={{ marginBottom: 10, borderBottom: `1px solid ${C.border}` }}>
+        <div style={{ display: "flex", alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 0, flexShrink: 0 }}>
+            {["transactions", "subscriptions", "goals", "accounts", "rules"].map(tab => (
+              <button key={tab} onClick={() => setCfSubTab(tab)}
+                style={{ background: "transparent", border: "none", color: cfSubTab === tab ? C.text : C.muted, fontWeight: cfSubTab === tab ? 700 : 400, fontSize: 12, padding: "8px 12px", cursor: "pointer", borderBottom: cfSubTab === tab ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1, whiteSpace: "nowrap" }}>
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </button>
+            ))}
+          </div>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, paddingBottom: 4, flexShrink: 0 }}>
+            {cfSubTab === "transactions" && <>
+              <input style={{ ...s.input, width: 120, fontSize: 11, padding: "5px 8px" }} placeholder="Search..." value={txSearch} onChange={e => setTxSearch(e.target.value)} />
+              <input type="month" style={{ ...s.input, width: 118, fontSize: 11, padding: "5px 6px" }} value={viewMonth} onChange={e => setViewMonth(e.target.value)} />
+              <button onClick={() => setShowFilters(p => !p)}
+                style={{ background: "transparent", border: `1px solid ${showFilters || filterType !== "all" || period !== "monthly" ? C.accent : C.border}`, borderRadius: 5, color: showFilters || filterType !== "all" || period !== "monthly" ? C.accent : C.muted, fontSize: 11, padding: "5px 10px", cursor: "pointer" }}>
+                Filters{filterType !== "all" || period !== "monthly" || filterCategory || filterBucket ? " ●" : ""}
+              </button>
+            </>}
+          </div>
         </div>
+        {/* Active filter badges — second row, only when filters are active */}
+        {(filterAccountId || filterCategory) && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "2px 12px 4px", flexWrap: "wrap" }}>
+            <span style={{ fontSize: 10, color: C.muted, marginRight: 2 }}>Filtered:</span>
+            {filterAccountId && (
+              <span onClick={() => setFilterAccountId(null)}
+                style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: C.accent + "22", color: C.accent, cursor: "pointer", fontWeight: 600 }}>
+                {bankAccounts[filterAccountId]?.name || "Account"} &times;
+              </span>
+            )}
+            {filterCategory && (
+              <span onClick={() => setFilterCategory(null)}
+                style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: C.accent + "22", color: C.accent, cursor: "pointer", fontWeight: 600 }}>
+                {filterCategory === "_uncatIncome" ? "Uncategorised Income" : filterCategory} &times;
+              </span>
+            )}
+          </div>
+        )}
       </div>
       {cfSubTab === "transactions" && showFilters && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12, padding: "8px 12px", background: C.card2, borderRadius: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12, padding: "8px 12px", background: C.card2, borderRadius: 6, flexWrap: "wrap" }}>
           <span style={{ fontSize: 11, color: C.muted, marginRight: 4 }}>Type:</span>
           {["all", "income", "expense", "transfers"].map(f => (
             <button key={f} onClick={() => setFilterType(f)}
@@ -2964,6 +4268,24 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
               {p.charAt(0).toUpperCase() + p.slice(1)}
             </button>
           ))}
+          <span style={{ width: 1, height: 18, background: C.border, margin: "0 4px" }} />
+          <span style={{ fontSize: 11, color: C.muted, marginRight: 4 }}>Category:</span>
+          <select style={{ ...s.select, fontSize: 11, padding: "3px 6px", background: filterCategory ? C.accent + "22" : "transparent", color: filterCategory ? C.accent : C.muted, border: `1px solid ${filterCategory ? C.accent : C.border}`, borderRadius: 4, maxWidth: 160 }}
+            value={filterCategory || ""} onChange={e => setFilterCategory(e.target.value || null)}>
+            <option value="">All Categories</option>
+            {[...new Set(allTxns.map(t => t.category))].sort().map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <span style={{ width: 1, height: 18, background: C.border, margin: "0 4px" }} />
+          <span style={{ fontSize: 11, color: C.muted, marginRight: 4 }}>Tag:</span>
+          <select style={{ ...s.select, fontSize: 11, padding: "3px 6px", background: filterBucket ? C.accent + "22" : "transparent", color: filterBucket ? C.accent : C.muted, border: `1px solid ${filterBucket ? C.accent : C.border}`, borderRadius: 4 }}
+            value={filterBucket || ""} onChange={e => setFilterBucket(e.target.value || null)}>
+            <option value="">All Tags</option>
+            {BUCKETS.filter(b => viewBuckets.includes(b)).map(b => <option key={b} value={b}>{b}</option>)}
+          </select>
+          {(filterCategory || filterBucket || filterType !== "all" || period !== "monthly") && (
+            <button onClick={() => { setFilterCategory(null); setFilterBucket(null); setFilterType("all"); setPeriod("monthly"); }}
+              style={{ ...s.btnSm, fontSize: 10, padding: "2px 8px", color: C.red, marginLeft: 4 }}>Clear All</button>
+          )}
         </div>
       )}
 
@@ -2971,31 +4293,13 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
       {cfSubTab === "transactions" && <div className="mc-flex-row" style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
 
         {/* LEFT: Transaction list */}
-        <div style={{ flex: 3, minWidth: 0 }}>
-          {/* Actions needed card */}
-          {(uncategorizedCount > 0 || unreviewedCount > 0 || overBudgetCats.length > 0) && (
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "12px 16px", marginBottom: 12 }}>
-              {uncategorizedCount > 0 && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 4, background: C.accent, flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, fontWeight: 600, color: C.accent }}>{uncategorizedCount} uncategorized</span>
-                  <span style={{ fontSize: 12, color: C.muted }}>— assign categories to improve auto-rules</span>
-                </div>
-              )}
-              {unreviewedCount > 0 && unreviewedCount !== uncategorizedCount && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 4, background: C.orange, flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, fontWeight: 600, color: C.orange }}>{unreviewedCount} to review</span>
-                  <span style={{ fontSize: 12, color: C.muted }}>— check these transactions are categorized correctly</span>
-                </div>
-              )}
-              {overBudgetCats.length > 0 && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 4, background: C.red, flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, fontWeight: 600, color: C.red }}>{overBudgetCats.length} over budget</span>
-                  <span style={{ fontSize: 12, color: C.muted }}>— {overBudgetCats.slice(0, 3).join(", ")}{overBudgetCats.length > 3 ? ` +${overBudgetCats.length - 3} more` : ""}</span>
-                </div>
-              )}
+        <div style={{ flex: showSummary ? 3 : 1, minWidth: 0 }}>
+          {/* Over-budget alert (if any) */}
+          {overBudgetCats.length > 0 && (
+            <div style={{ background: C.red + "12", border: `1px solid ${C.red}33`, borderRadius: 6, padding: "8px 12px", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 4, background: C.red, flexShrink: 0 }} />
+              <span style={{ fontSize: 12, fontWeight: 600, color: C.red }}>{overBudgetCats.length} over budget</span>
+              <span style={{ fontSize: 11, color: C.muted }}>— {overBudgetCats.slice(0, 3).join(", ")}</span>
             </div>
           )}
 
@@ -3006,54 +4310,122 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
                 No transactions for {monthLabel(viewMonth)}. Upload a bank statement or add manually below.
               </div>
             ) : (
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
                 <thead>
                   <tr>
-                    <th style={{ ...s.th, width: 28, padding: "6px 8px" }}></th>
-                    <th style={{ ...s.th, padding: "6px 8px", cursor: "pointer" }} onClick={() => onSort("date")}>DATE{sortKey === "date" ? (sortDir === "asc" ? " ↑" : " ↓") : ""}</th>
-                    <th style={{ ...s.th, padding: "6px 8px", cursor: "pointer" }} onClick={() => onSort("category")}>CATEGORY{sortKey === "category" ? (sortDir === "asc" ? " ↑" : " ↓") : ""}</th>
-                    <th style={{ ...s.th, padding: "6px 8px", width: 36 }}></th>
-                    <th style={{ ...s.th, padding: "6px 8px", textAlign: "right", cursor: "pointer" }} onClick={() => onSort("amount")}>AMOUNT{sortKey === "amount" ? (sortDir === "asc" ? " ↑" : " ↓") : ""}</th>
-                    <th style={{ ...s.th, padding: "6px 8px" }}>NOTES</th>
-                    <th style={{ ...s.th, width: 28, padding: "6px 8px" }}></th>
+                    <th style={{ ...s.th, width: "3%", padding: "6px 2px" }}></th>
+                    <th style={{ ...s.th, width: "12%", padding: "6px 4px", cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => onSort("date")}>DATE{sortKey === "date" ? (sortDir === "asc" ? " ↑" : " ↓") : ""}</th>
+                    <th style={{ ...s.th, padding: "6px 4px", cursor: "pointer" }} onClick={() => onSort("description")}>DESCRIPTION</th>
+                    <th style={{ ...s.th, width: showSummary ? "22%" : "14%", padding: "6px 4px", textAlign: "right", cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => onSort("amount")}>AMOUNT</th>
+                    {!showSummary && <th style={{ ...s.th, width: "20%", padding: "6px 4px", cursor: "pointer" }} onClick={() => onSort("category")}>CATEGORY</th>}
+                    {!showSummary && <th style={{ ...s.th, width: "8%", padding: "6px 4px", whiteSpace: "nowrap" }}>TAG</th>}
+                    <th style={{ ...s.th, width: "3%", padding: "6px 2px", textAlign: "center", color: C.green }}>✓</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sorted.map((t, i) => (
-                    <tr key={t.id} style={{ background: t.isTransfer ? C.accent2 + "08" : t.reviewed ? "transparent" : (i % 2 ? C.card2 + "22" : "transparent"), borderBottom: `1px solid ${C.border}15` }}>
-                      <td style={{ padding: "6px 8px" }}>
+                    <tr key={t.id} style={{ background: isTransferTx(t) ? C.accent2 + "08" : t.reviewed ? "transparent" : (i % 2 ? C.card2 + "22" : "transparent"), borderBottom: `1px solid ${C.border}15`, opacity: isTransferTx(t) ? 0.6 : 1 }}>
+                      <td style={{ padding: "4px 2px" }}>
                         <input type="checkbox" checked={!!t.reviewed} onChange={() => toggleReviewed(t.id)} style={{ cursor: "pointer", accentColor: C.green }} />
                       </td>
-                      <td style={{ padding: "6px 8px", fontSize: 13, color: C.muted, whiteSpace: "nowrap" }}>
+                      <td style={{ padding: "4px 4px", fontSize: 11, color: C.muted, whiteSpace: "nowrap", overflow: "hidden" }}>
                         {new Date(t.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
                       </td>
-                      <td style={{ padding: "6px 8px", fontSize: 13, color: C.text }}>
-                        <select style={{ ...s.select, padding: "2px 4px", fontSize: 12, background: "transparent", border: "none", color: t.isTransfer ? C.accent2 : C.text }}
+                      <td style={{ padding: "4px 4px", overflow: "hidden", cursor: "pointer" }}
+                        onClick={() => setExpandedTxId(expandedTxId === t.id ? null : t.id)}>
+                        <div style={{ fontSize: 12, color: C.text, textOverflow: "ellipsis", whiteSpace: expandedTxId === t.id ? "normal" : "nowrap", overflow: "hidden", wordBreak: expandedTxId === t.id ? "break-word" : undefined }}>
+                          {t.description || "—"}
+                        </div>
+                        {t.transferNote && (
+                          <div style={{ fontSize: 9, color: C.accent2, fontWeight: 600, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {t.transferNote}
+                          </div>
+                        )}
+                        {expandedTxId === t.id && (() => {
+                          const acct = t.plaidAccountId ? bankAccounts[t.plaidAccountId] : null;
+                          /* Try to find account by matching mask in description (e.g. "Account-4829") */
+                          const inferredAcct = !acct && (() => {
+                            const maskMatch = (t.description || "").match(/(\d{4})\s*$/);
+                            if (!maskMatch) return null;
+                            const mask = maskMatch[1];
+                            const found = Object.entries(bankAccounts).find(([, a]) => a.mask === mask && a.bucket === t.bucket);
+                            return found ? found[1] : null;
+                          })();
+                          const displayAcct = acct || inferredAcct;
+                          const sourceLabel = t.source === "plaid" || t.plaidId ? "Plaid" : t.source === "csv" ? "CSV import" : "Bank import";
+                          return (
+                            <div style={{ fontSize: 10, color: C.muted, marginTop: 4, padding: "4px 0", borderTop: `1px solid ${C.border}20`, lineHeight: 1.5 }}>
+                              {displayAcct ? (<>
+                                <div><span style={{ color: C.accent, fontWeight: 600 }}>{displayAcct.nickname || displayAcct.name}</span> {displayAcct.mask ? `*${displayAcct.mask}` : ""}</div>
+                                <div>{displayAcct.institution} · {displayAcct.type}/{displayAcct.subtype}</div>
+                              </>) : (
+                                <div>Source: {sourceLabel}</div>
+                              )}
+                              {t.plaidCategory && <div>Plaid category: {t.plaidCategory}</div>}
+                              {t.currency && t.currency !== "CAD" && <div>Currency: {t.currency}</div>}
+                            </div>
+                          );
+                        })()}
+                      </td>
+                      <td style={{ padding: "4px 4px", fontSize: 11, fontWeight: 600, textAlign: "right", fontFamily: "monospace", whiteSpace: "nowrap", overflow: "hidden",
+                        color: isTransferTx(t) ? C.accent2 : t.type === "income" ? C.green : C.red }}>
+                        {t.type === "income" ? "" : "-"}{t.currency !== "CAD" ? t.currency : ""}${fmtFull(t.amount).replace("$", "")}
+                      </td>
+                      {!showSummary && <td style={{ padding: "4px 4px", fontSize: 11, color: C.text, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <select style={{ ...s.select, padding: "1px 2px", fontSize: 11, background: "transparent", border: "none", color: isTransferTx(t) ? C.accent2 : C.text, maxWidth: "100%" }}
                           value={t.category} onChange={e => recategorize(t.id, e.target.value)}>
                           {[...(t.type === "income" ? INCOME_CATS[t.bucket] || [] : [...(DEFAULT_TAX_CATS[t.bucket] || []), ...(TRANSFER_CATS[t.bucket] || [])]), t.category]
                             .filter((v, idx, a) => a.indexOf(v) === idx).map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
+                      </td>}
+                      {!showSummary && <td style={{ padding: "4px 4px", overflow: "hidden" }}>
+                        <span style={{ ...S(theme).badge(BUCKET_COLORS[t.bucket]), fontSize: 8, padding: "2px 4px", whiteSpace: "nowrap" }}>{t.bucket}</span>
+                      </td>}
+                      <td style={{ padding: "4px 2px", textAlign: "center", cursor: "pointer" }} onClick={() => toggleReviewed(t.id)}>
+                        <span style={{ fontSize: 13, color: t.reviewed ? C.green : C.muted + "44" }}>{t.reviewed ? "✓" : "○"}</span>
                       </td>
-                      <td style={{ padding: "6px 8px", fontSize: 10, color: C.muted }}>
-                        <span style={{ ...S(theme).badge(BUCKET_COLORS[t.bucket]), fontSize: 9, padding: "1px 4px" }}>{bucketAbbrev[t.bucket]}</span>
-                      </td>
-                      <td style={{ padding: "6px 8px", fontSize: 13, fontWeight: 600, textAlign: "right", fontFamily: "monospace",
-                        color: t.isTransfer ? C.accent2 : t.type === "income" ? C.green : C.red }}>
-                        {t.type === "income" ? "" : "-"}{t.currency !== "CAD" ? t.currency : ""}${fmtFull(t.amount).replace("$", "")}
-                      </td>
-                      <td style={{ padding: "6px 8px", fontSize: 12, color: C.muted, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {t.description}
-                      </td>
-                      <td style={{ padding: "6px 8px" }}><button style={{ ...s.btnDanger, fontSize: 10, padding: "2px 6px" }} onClick={() => removeTx(t.id)}>✕</button></td>
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr style={{ borderTop: `2px solid ${C.border}`, background: C.card2 + "33" }}>
+                    <td colSpan={showSummary ? 3 : 3} style={{ padding: "8px 4px", fontSize: 12, fontWeight: 700, color: C.text, textAlign: "right" }}>
+                      {sorted.length} transaction{sorted.length !== 1 ? "s" : ""}
+                    </td>
+                    <td style={{ padding: "8px 4px", fontSize: 12, fontWeight: 700, textAlign: "right", fontFamily: "monospace", whiteSpace: "nowrap", color: (() => { const inc = sorted.filter(t => t.type === "income" && !isTransferTx(t)).reduce((s2, t) => s2 + toBase(t.amount, t.currency || "CAD", rates), 0); const exp = sorted.filter(t => t.type === "expense" && !isTransferTx(t)).reduce((s2, t) => s2 + toBase(t.amount, t.currency || "CAD", rates), 0); return inc - exp >= 0 ? C.green : C.red; })() }}>
+                      {mask((() => {
+                        const inc = sorted.filter(t => t.type === "income" && !isTransferTx(t)).reduce((s2, t) => s2 + toBase(t.amount, t.currency || "CAD", rates), 0);
+                        const exp = sorted.filter(t => t.type === "expense" && !isTransferTx(t)).reduce((s2, t) => s2 + toBase(t.amount, t.currency || "CAD", rates), 0);
+                        const net = inc - exp;
+                        return `${net >= 0 ? "+" : "-"}${fmtFull(Math.abs(net))}`;
+                      })(), hide)}
+                    </td>
+                    <td colSpan={showSummary ? 1 : 3} style={{ padding: "8px 4px", fontSize: 10, color: C.muted }}>
+                      {(() => {
+                        const inc = sorted.filter(t => t.type === "income" && !isTransferTx(t)).reduce((s2, t) => s2 + toBase(t.amount, t.currency || "CAD", rates), 0);
+                        const exp = sorted.filter(t => t.type === "expense" && !isTransferTx(t)).reduce((s2, t) => s2 + toBase(t.amount, t.currency || "CAD", rates), 0);
+                        return `In: ${mask(fmtFull(inc), hide)} · Out: ${mask(fmtFull(exp), hide)}`;
+                      })()}
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             )}
           </div>
 
           {/* Add transaction + Upload — compact row */}
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+          <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+            <button style={{ ...s.btn, fontSize: 12 }} onClick={async () => {
+              try {
+                const res = await fetch(`${PLAID_SERVER}/api/plaid/connections`);
+                const conns = await res.json();
+                if (!conns.length) { alert("No Plaid accounts connected. Go to Accounts tab to connect."); return; }
+                let total = 0;
+                for (const conn of conns) { total += await importPlaidTransactions(conn.id); }
+                alert(`Imported ${total} new transactions (from Jan 1, 2026)`);
+              } catch (e) { alert("Import failed: " + e.message); }
+            }}>Refresh Transactions</button>
+            <button style={{ ...s.btn, fontSize: 12, background: C.orange + "22", color: C.orange, border: `1px solid ${C.orange}44` }} onClick={generateAutoCatSuggestions}>Auto Categorize{txns.filter(t => t.category === "Uncategorized").length > 0 ? ` (${txns.filter(t => t.category === "Uncategorized").length})` : ""}</button>
             <button style={{ ...s.btnSm, fontSize: 12 }} onClick={() => setShowAddTx(!showAddTx)}>+ Add</button>
             <button style={{ ...s.btnSm, fontSize: 12 }} onClick={() => setShowUpload(!showUpload)}>Upload CSV</button>
             <button style={{ ...s.btnSm, fontSize: 12, background: showCharts ? C.accent2 : C.card2, color: showCharts ? "#fff" : C.text }} onClick={() => setShowCharts(!showCharts)}>Charts</button>
@@ -3138,147 +4510,178 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
           )}
         </div>
 
+        {/* Toggle arrows — hide/show + expand/shrink */}
+        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: 2, flexShrink: 0, padding: 0, margin: "0 -6px" }}>
+          <div onClick={() => setShowSummary(!showSummary)} style={{ cursor: "pointer", fontSize: 10, color: C.muted, userSelect: "none", padding: "4px 2px", borderRadius: 3, textAlign: "center", lineHeight: 1 }} title={showSummary ? "Hide summary" : "Show summary"}>
+            {showSummary ? "▶" : "◀"}
+          </div>
+          {showSummary && (
+            <div onClick={() => setExpandedSummary(!expandedSummary)} style={{ cursor: "pointer", fontSize: 10, color: C.accent, userSelect: "none", padding: "4px 2px", borderRadius: 3, textAlign: "center", lineHeight: 1 }} title={expandedSummary ? "Shrink summary" : "Expand summary"}>
+              {expandedSummary ? "▷" : "◁"}
+            </div>
+          )}
+        </div>
+
         {/* RIGHT: Monthly summary panel */}
-        <div style={{ flex: 1.5, minWidth: 280 }}>
+        {showSummary && <div style={{ flex: expandedSummary ? 4 : 2, minWidth: expandedSummary ? 480 : 320, transition: "flex 0.2s, min-width 0.2s" }}>
+          {/* Review transactions card */}
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "20px 16px", marginBottom: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 4 }}>
+              REVIEW {unreviewedCount} TRANSACTION{unreviewedCount === 1 ? "" : "S"}
+            </div>
+            <div style={{ fontSize: 12, color: C.muted }}>Ensure your transactions are categorized properly.</div>
+          </div>
           <div style={{ ...s.card, position: "sticky", top: 80 }}>
-            <h3 style={{ ...s.h3, fontSize: 14, marginBottom: 16, textAlign: "center" }}>{monthLabel(viewMonth)} Summary</h3>
+            <h3 style={{ ...s.h3, fontSize: 16, marginBottom: 12, textAlign: "center" }}>{monthLabel(viewMonth)} Summary</h3>
 
             {/* Income — collapsible section */}
             <div style={{ marginBottom: 16 }}>
               <div onClick={() => setCollapsedSections(p => ({ ...p, income: !p.income }))}
                 style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", marginBottom: 8 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 9, color: C.muted, transition: "transform 0.2s", transform: collapsedSections.income ? "rotate(-90deg)" : "rotate(0deg)", display: "inline-block" }}>▼</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: C.text, textTransform: "uppercase", letterSpacing: 0.5 }}>Income</span>
+                  <span style={{ fontSize: 10, color: C.muted, transition: "transform 0.2s", transform: collapsedSections.income ? "rotate(-90deg)" : "rotate(0deg)", display: "inline-block" }}>▼</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: C.text, textTransform: "uppercase", letterSpacing: 0.5 }}>Income</span>
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 700, color: C.green, fontFamily: "monospace" }}>{mask(fmtFull(totalIncome), hide)}</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: C.green, fontFamily: "monospace" }}>{mask(fmtFull(totalIncome), hide)}</span>
               </div>
               {!collapsedSections.income && (<>
-                {viewBuckets.map(bucket => {
-                  const groups = hierIncomeTotals[bucket] || {};
-                  return Object.entries(groups).map(([groupName, group]) => {
-                    const isOpen = !collapsedGroups[groupName];
-                    const barMax = totalIncome || 1;
-                    return (
-                      <div key={`${bucket}-${groupName}`} style={{ marginBottom: 4 }}>
-                        <div onClick={() => toggleGroup(groupName)}
-                          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", cursor: "pointer", borderBottom: `1px solid ${C.border}15` }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                            <span style={{ fontSize: 9, color: C.muted, transition: "transform 0.2s", transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)", display: "inline-block" }}>▼</span>
-                            <span style={{ fontSize: 13, fontWeight: 600, color: C.green }}>{groupName}</span>
-                          </div>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: C.green, fontFamily: "monospace" }}>{group.total > 0 ? mask(fmtFull(group.total), hide) : ""}</span>
-                        </div>
-                        {group.total > 0 && (
-                          <div style={{ height: 4, borderRadius: 2, background: C.border, marginTop: 2, marginBottom: 2, overflow: "hidden" }}>
-                            <div style={{ height: "100%", borderRadius: 2, background: C.gold, width: `${Math.min(100, (group.total / barMax) * 100)}%` }} />
-                          </div>
-                        )}
-                        {isOpen && Object.entries(group.subcategories).map(([cat, val]) => (
-                          <div key={cat} style={{ padding: "3px 0 3px 20px" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                              <span style={{ color: val > 0 ? C.green : C.muted }}>└─ {cat}</span>
-                              <span style={{ color: val > 0 ? C.green : C.muted, fontFamily: "monospace" }}>{val > 0 ? mask(fmtFull(val), hide) : ""}</span>
+                {(() => {
+                  let hierTotal = 0;
+                  const rows = viewBuckets.flatMap(bucket => {
+                    const groups = hierIncomeTotals[bucket] || {};
+                    return Object.entries(groups).map(([groupName, group]) => {
+                      hierTotal += group.total;
+                      const isOpen = !collapsedGroups[groupName];
+                      return (
+                        <div key={`${bucket}-${groupName}`} style={{ marginBottom: 3 }}>
+                          <div onClick={() => toggleGroup(groupName)}
+                            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", cursor: "pointer", borderBottom: `1px solid ${C.border}15` }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                              <span style={{ fontSize: 9, color: C.muted, transition: "transform 0.2s", transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)", display: "inline-block" }}>▼</span>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: group.total > 0 ? C.green : C.muted }}>{groupName}</span>
                             </div>
-                            {val > 0 && (
-                              <div style={{ height: 3, borderRadius: 2, background: C.border, marginTop: 2, overflow: "hidden", marginLeft: 20 }}>
-                                <div style={{ height: "100%", borderRadius: 2, background: C.gold, width: `${Math.min(100, (val / barMax) * 100)}%` }} />
-                              </div>
-                            )}
+                            <span style={{ fontSize: 13, fontWeight: 600, color: group.total > 0 ? C.green : C.muted, fontFamily: "monospace" }}>{mask(fmtFull(group.total), hide)}</span>
                           </div>
-                        ))}
-                      </div>
-                    );
+                          {isOpen && Object.entries(group.subcategories).map(([cat, val]) => (
+                            <div key={cat} style={{ padding: "2px 0 2px 18px" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, cursor: "pointer" }}
+                                onClick={() => setFilterCategory(filterCategory === cat ? null : cat)}>
+                                <span style={{ color: filterCategory === cat ? C.accent : val > 0 ? C.green : C.muted, textDecoration: filterCategory === cat ? "underline" : "none" }}>└ {cat}</span>
+                                <span style={{ color: val > 0 ? C.green : C.muted, fontFamily: "monospace" }}>{mask(fmtFull(val), hide)}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    });
                   });
-                })}
+                  const uncatIncome = totalIncome - hierTotal;
+                  return (<>
+                    {rows}
+                    {uncatIncome > 0.01 && (
+                      <div onClick={() => setFilterCategory(filterCategory === "_uncatIncome" ? null : "_uncatIncome")}
+                        style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: 12, color: C.orange, cursor: "pointer" }}>
+                        <span>Other / Uncategorised</span>
+                        <span style={{ fontWeight: 600, fontFamily: "monospace" }}>{mask(fmtFull(uncatIncome), hide)}</span>
+                      </div>
+                    )}
+                  </>);
+                })()}
               </>)}
             </div>
 
-            {/* Expenses — collapsible section with budget + % */}
-            <div style={{ marginBottom: 16 }}>
-              <div onClick={() => setCollapsedSections(p => ({ ...p, expenses: !p.expenses }))}
-                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", marginBottom: 8, borderTop: `1px dashed ${C.border}`, paddingTop: 12 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 9, color: C.muted, transition: "transform 0.2s", transform: collapsedSections.expenses ? "rotate(-90deg)" : "rotate(0deg)", display: "inline-block" }}>▼</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: C.text, textTransform: "uppercase", letterSpacing: 0.5 }}>Expenses</span>
-                </div>
-                <span style={{ fontSize: 13, fontWeight: 700, color: C.red, fontFamily: "monospace" }}>{mask(fmtFull(totalExpenses), hide)}</span>
-              </div>
-              {!collapsedSections.expenses && (<>
-                {viewBuckets.map(bucket => {
-                  const groups = hierTotals[bucket] || {};
-                  return Object.entries(groups).map(([groupName, group]) => {
-                    const isOpen = !collapsedGroups[groupName];
-                    const expBarMax = totalExpenses || 1;
-                    const groupBudget = budgetTargets[groupName]?.monthly;
-                    const groupBarMax = groupBudget || expBarMax;
-                    const groupPct = totalExpenses > 0 ? ((group.total / totalExpenses) * 100) : 0;
-                    const groupBudgetRatio = groupBudget ? group.total / groupBudget : 0;
-                    const groupBarColor = groupBudget ? (groupBudgetRatio >= 1 ? C.red : groupBudgetRatio >= 0.8 ? C.orange : C.green) : C.accent;
-                    return (
-                      <div key={`${bucket}-${groupName}`} style={{ marginBottom: 4 }}>
-                        <div style={{ display: "flex", alignItems: "center", padding: "5px 0", borderBottom: `1px solid ${C.border}15` }}>
-                          <div onClick={() => toggleGroup(groupName)} style={{ display: "flex", alignItems: "center", gap: 4, flex: 1, cursor: "pointer" }}>
-                            <span style={{ fontSize: 9, color: C.muted, transition: "transform 0.2s", transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)", display: "inline-block" }}>▼</span>
-                            <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{groupName}</span>
-                          </div>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: C.text, fontFamily: "monospace", minWidth: 80, textAlign: "right" }}>{group.total > 0 ? mask(fmtFull(group.total), hide) : ""}</span>
-                          <span style={{ fontSize: 10, color: C.muted, minWidth: 36, textAlign: "right" }}>{groupPct > 0 ? (groupPct < 1 ? "<1%" : Math.round(groupPct) + "%") : ""}</span>
-                          {editingBudget === groupName ? (
-                            <input autoFocus style={{ ...s.input, width: 70, fontSize: 10, marginLeft: 6 }} placeholder="$/mo" type="number"
-                              onBlur={e => setBudget(groupName, e.target.value)} onKeyDown={e => { if (e.key === "Enter") setBudget(groupName, e.target.value); if (e.key === "Escape") setEditingBudget(null); }} />
-                          ) : (
-                            <span onClick={() => setEditingBudget(groupName)} style={{ fontSize: 10, color: groupBudget ? C.muted : C.accent2, cursor: "pointer", minWidth: 50, textAlign: "right", marginLeft: 6 }}>
-                              {groupBudget ? mask(fmtFull(groupBudget), hide) : "Set"}
-                            </span>
-                          )}
-                        </div>
-                        {(group.total > 0 || groupBudget) && (
-                          <div style={{ height: 4, borderRadius: 2, background: C.border, marginTop: 2, marginBottom: 2, overflow: "hidden" }}>
-                            <div style={{ height: "100%", borderRadius: 2, background: groupBarColor, width: `${Math.min(100, (group.total / groupBarMax) * 100)}%` }} />
-                          </div>
-                        )}
-                        {isOpen && Object.entries(group.subcategories).map(([cat, val]) => {
-                          const catBudget = budgetTargets[cat]?.monthly;
-                          const catPct = totalExpenses > 0 ? ((val / totalExpenses) * 100) : 0;
-                          const catBudgetRatio = catBudget ? val / catBudget : 0;
-                          const catBarColor = catBudget ? (catBudgetRatio >= 1 ? C.red : catBudgetRatio >= 0.8 ? C.orange : C.green) : C.accent;
-                          const catBarMax = catBudget || expBarMax;
+            {/* Expenses — split into Business & Personal */}
+            {(() => {
+              const bizBuckets = ["Opco", "Holdco"].filter(b => viewBuckets.includes(b));
+              const persBuckets = ["Jon", "Jacqueline"].filter(b => viewBuckets.includes(b));
+              const bizExp = nonTransfer.filter(t => t.type === "expense" && bizBuckets.includes(t.bucket)).reduce((s2, t) => s2 + toBase(t.amount, t.currency || "CAD", rates), 0);
+              const persExp = nonTransfer.filter(t => t.type === "expense" && persBuckets.includes(t.bucket)).reduce((s2, t) => s2 + toBase(t.amount, t.currency || "CAD", rates), 0);
+              const bizUncatTotal = nonTransfer.filter(t => t.type === "expense" && bizBuckets.includes(t.bucket) && t.category === "Uncategorized").reduce((s2, t) => s2 + toBase(t.amount, t.currency || "CAD", rates), 0);
+              const persUncatTotal = nonTransfer.filter(t => t.type === "expense" && persBuckets.includes(t.bucket) && t.category === "Uncategorized").reduce((s2, t) => s2 + toBase(t.amount, t.currency || "CAD", rates), 0);
+
+              const renderExpenseGroup = (label, buckets, total, uncatTotal, borderColor, sectionKey) => {
+                if (buckets.length === 0) return null;
+                const isCollapsed = collapsedSections[sectionKey];
+                return (
+                  <div style={{ marginBottom: 14 }}>
+                    <div onClick={() => setCollapsedSections(p => ({ ...p, [sectionKey]: !p[sectionKey] }))}
+                      style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", marginBottom: 6, borderTop: `1px dashed ${C.border}`, paddingTop: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                        <span style={{ fontSize: 10, color: C.muted, transition: "transform 0.2s", transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)", display: "inline-block" }}>▼</span>
+                        <span style={{ width: 8, height: 8, borderRadius: 4, background: borderColor, flexShrink: 0 }} />
+                        <span style={{ fontSize: 13, fontWeight: 700, color: C.text, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</span>
+                      </div>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: C.red, fontFamily: "monospace" }}>{mask(fmtFull(total), hide)}</span>
+                    </div>
+                    {!isCollapsed && (() => {
+                      /* Merge groups across buckets so Jon+Jacqueline don't show duplicate "Personal", "House", etc. */
+                      const mergedGroups = {};
+                      buckets.forEach(bucket => {
+                        const groups = hierTotals[bucket] || {};
+                        Object.entries(groups).forEach(([groupName, group]) => {
+                          if (!mergedGroups[groupName]) mergedGroups[groupName] = { total: 0, subcategories: {} };
+                          mergedGroups[groupName].total += group.total;
+                          Object.entries(group.subcategories).forEach(([cat, val]) => {
+                            mergedGroups[groupName].subcategories[cat] = (mergedGroups[groupName].subcategories[cat] || 0) + val;
+                          });
+                        });
+                      });
+                      return (<>
+                      {Object.entries(mergedGroups).map(([groupName, group]) => {
+                          const isOpen = !collapsedGroups[groupName];
+                          const groupBudget = budgetTargets[groupName]?.monthly;
+                          const groupBarMax = groupBudget || total || 1;
+                          const groupBudgetRatio = groupBudget ? group.total / groupBudget : 0;
+                          const groupBarColor = groupBudget ? (groupBudgetRatio >= 1 ? C.red : groupBudgetRatio >= 0.8 ? C.orange : C.green) : C.accent;
                           return (
-                            <div key={cat} style={{ padding: "3px 0 3px 20px" }}>
-                              <div style={{ display: "flex", alignItems: "center", fontSize: 12 }}>
-                                <span style={{ flex: 1, color: val > 0 ? C.muted : C.muted }}>└─ {cat}</span>
-                                <span style={{ color: C.muted, fontFamily: "monospace", minWidth: 80, textAlign: "right" }}>{val > 0 ? mask(fmtFull(val), hide) : ""}</span>
-                                <span style={{ fontSize: 10, color: C.muted, minWidth: 36, textAlign: "right" }}>{catPct > 0 ? (catPct < 1 ? "<1%" : Math.round(catPct) + "%") : ""}</span>
-                                {editingBudget === cat ? (
-                                  <input autoFocus style={{ ...s.input, width: 70, fontSize: 10, marginLeft: 6 }} placeholder="$/mo" type="number"
-                                    onBlur={e => setBudget(cat, e.target.value)} onKeyDown={e => { if (e.key === "Enter") setBudget(cat, e.target.value); if (e.key === "Escape") setEditingBudget(null); }} />
-                                ) : (
-                                  <span onClick={() => setEditingBudget(cat)} style={{ fontSize: 10, color: catBudget ? C.muted : C.accent2, cursor: "pointer", minWidth: 50, textAlign: "right", marginLeft: 6 }}>
-                                    {catBudget ? mask(fmtFull(catBudget), hide) : "Set"}
-                                  </span>
-                                )}
+                            <div key={groupName} style={{ marginBottom: 3 }}>
+                              <div style={{ display: "flex", alignItems: "center", padding: "4px 0", borderBottom: `1px solid ${C.border}15` }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 3, flex: 1, cursor: "pointer", minWidth: 0 }}>
+                                  <span onClick={() => toggleGroup(groupName)} style={{ fontSize: 9, color: C.muted, transition: "transform 0.2s", transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)", display: "inline-block", padding: "2px 3px" }}>▼</span>
+                                  <span onClick={() => toggleGroup(groupName)} style={{ fontSize: 13, fontWeight: 600, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{groupName}</span>
+                                </div>
+                                <span style={{ fontSize: 13, fontWeight: 600, color: C.text, fontFamily: "monospace", flexShrink: 0, textAlign: "right" }}>{group.total > 0 ? mask(fmtFull(group.total), hide) : ""}</span>
                               </div>
-                              {(val > 0 || catBudget) && (
-                                <div style={{ height: 3, borderRadius: 2, background: C.border, marginTop: 2, overflow: "hidden", marginLeft: 20 }}>
-                                  <div style={{ height: "100%", borderRadius: 2, background: catBarColor, width: `${Math.min(100, (val / catBarMax) * 100)}%` }} />
+                              {(group.total > 0 || groupBudget) && (
+                                <div style={{ height: 3, borderRadius: 2, background: C.border, marginTop: 2, marginBottom: 2, overflow: "hidden" }}>
+                                  <div style={{ height: "100%", borderRadius: 2, background: groupBarColor, width: `${Math.min(100, (group.total / groupBarMax) * 100)}%` }} />
                                 </div>
                               )}
+                              {isOpen && Object.entries(group.subcategories).map(([cat, val]) => (
+                                <div key={cat} style={{ padding: "2px 0 2px 18px" }}>
+                                  <div style={{ display: "flex", alignItems: "center", fontSize: 12 }}>
+                                    <span onClick={() => setFilterCategory(filterCategory === cat ? null : cat)}
+                                      style={{ flex: 1, color: filterCategory === cat ? C.accent : C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0, cursor: "pointer", textDecoration: filterCategory === cat ? "underline" : "none" }}>└ {cat}</span>
+                                    <span style={{ color: C.muted, fontFamily: "monospace", flexShrink: 0, textAlign: "right", fontSize: 12 }}>{val > 0 ? mask(fmtFull(val), hide) : ""}</span>
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           );
                         })}
-                      </div>
-                    );
-                  });
-                })}
-                {uncategorizedTotal > 0 && (
-                  <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", fontSize: 13, color: C.orange }}>
-                    <span>Uncategorised</span>
-                    <span style={{ fontWeight: 600, fontFamily: "monospace" }}>{mask(fmtFull(uncategorizedTotal), hide)}</span>
+                      {uncatTotal > 0 && (
+                        <div onClick={() => setFilterCategory(filterCategory === "Uncategorized" ? null : "Uncategorized")}
+                          style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: 12, color: filterCategory === "Uncategorized" ? C.accent : C.orange, cursor: "pointer", textDecoration: filterCategory === "Uncategorized" ? "underline" : "none" }}>
+                          <span>Uncategorised</span>
+                          <span style={{ fontWeight: 600, fontFamily: "monospace" }}>{mask(fmtFull(uncatTotal), hide)}</span>
+                        </div>
+                      )}
+                      </>);
+                    })()}
                   </div>
-                )}
-              </>)}
-            </div>
+                );
+              };
+
+              return (<>
+                {renderExpenseGroup("Business Expenses", bizBuckets, bizExp, bizUncatTotal, BUCKET_COLORS.Opco, "bizExpenses")}
+                {renderExpenseGroup("Personal Expenses", persBuckets, persExp, persUncatTotal, BUCKET_COLORS.Jon, "persExpenses")}
+                {/* Total expenses line */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `2px solid ${C.border}`, paddingTop: 8, marginTop: 4 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: C.muted, textTransform: "uppercase" }}>Total Expenses</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: C.red, fontFamily: "monospace" }}>{mask(fmtFull(totalExpenses), hide)}</span>
+                </div>
+              </>);
+            })()}
 
             {/* Transfers — muted */}
             {viewBuckets.some(b => Object.values(transferTotals[b] || {}).some(v => v > 0)) && (
@@ -3295,6 +4698,38 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
               </div>
             )}
 
+            {/* Transfers — excluded from totals */}
+            {(() => {
+              const transferTxns = filtered.filter(t => isTransferTx(t));
+              const totalTransfers = transferTxns.reduce((s2, t) => s2 + toBase(t.amount, t.currency || "CAD", rates), 0);
+              if (transferTxns.length === 0) return null;
+              const transfersByBucket = {};
+              viewBuckets.forEach(b => {
+                const cats = {};
+                (TRANSFER_CATS[b] || []).forEach(cat => {
+                  const amt = transferTxns.filter(t => t.bucket === b && t.category === cat).reduce((s2, t) => s2 + toBase(t.amount, t.currency || "CAD", rates), 0);
+                  if (amt !== 0) cats[cat] = amt;
+                });
+                if (Object.keys(cats).length) transfersByBucket[b] = cats;
+              });
+              return (
+                <div style={{ borderTop: `1px dashed ${C.border}`, paddingTop: 10, marginTop: 12, opacity: 0.7 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: "uppercase", letterSpacing: "0.5px" }}>Transfers (excluded)</span>
+                    <span style={{ fontSize: 12, fontFamily: "monospace", color: C.muted }}>{mask(fmtFull(totalTransfers), hide)}</span>
+                  </div>
+                  {Object.entries(transfersByBucket).map(([bucket, cats]) =>
+                    Object.entries(cats).map(([cat, amt]) => (
+                      <div key={`${bucket}-${cat}`} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0 2px 8px", fontSize: 11 }}>
+                        <span style={{ color: C.muted }}>{cat}</span>
+                        <span style={{ fontFamily: "monospace", color: C.muted }}>{mask(fmtFull(amt), hide)}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Net */}
             <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12, marginTop: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, fontWeight: 700 }}>
@@ -3303,36 +4738,211 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
               </div>
             </div>
           </div>
-        </div>
+        </div>}
       </div>}
+
+      {/* ── Auto-Categorize Modal ── */}
+      {showAutoCat && (() => {
+        const unchanged = autoCatSuggestions.filter(s => s.suggestedCat === s.currentCat && s.currentCat === "Uncategorized").length;
+        const changed = autoCatSuggestions.filter(s => s.suggestedCat !== "Uncategorized" || s.currentCat !== "Uncategorized").length;
+        const total = autoCatSuggestions.length;
+        return (
+          <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
+            onClick={e => { if (e.target === e.currentTarget) { setShowAutoCat(false); setAutoCatSuggestions([]); } }}>
+            <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`, width: "94vw", maxWidth: 1050, maxHeight: "85vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.4)" }}>
+              {/* Header */}
+              <div style={{ padding: "20px 24px 16px", borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>Auto Categorize Transactions</div>
+                    <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
+                      {total} transaction{total !== 1 ? "s" : ""} to review — adjust categories below, then confirm
+                    </div>
+                  </div>
+                  <button onClick={() => { setShowAutoCat(false); setAutoCatSuggestions([]); }}
+                    style={{ background: "none", border: "none", color: C.muted, fontSize: 18, cursor: "pointer", padding: "4px 8px" }}>✕</button>
+                </div>
+                {/* Quick stats */}
+                <div style={{ display: "flex", gap: 16, marginTop: 12, fontSize: 11 }}>
+                  <span style={{ color: C.green }}>Categorized: {autoCatSuggestions.filter(s => s.suggestedCat !== "Uncategorized").length}</span>
+                  <span style={{ color: C.orange }}>Still uncategorized: {autoCatSuggestions.filter(s => s.suggestedCat === "Uncategorized").length}</span>
+                  <span style={{ color: C.muted }}>Will mark all as reviewed</span>
+                </div>
+              </div>
+              {/* Scrollable body */}
+              <div style={{ flex: 1, overflowY: "auto", padding: "8px 24px" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ position: "sticky", top: 0, background: C.card, zIndex: 1 }}>
+                      {["Date", "Description", "Bucket", "Amount", "Current", "→ Suggested"].map(h => (
+                        <th key={h} style={{ textAlign: h === "Amount" ? "right" : "left", padding: "8px 6px", fontSize: 10, fontWeight: 600, color: C.muted, textTransform: "uppercase", letterSpacing: "0.5px", borderBottom: `1px solid ${C.border}` }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {autoCatSuggestions.map((s, idx) => {
+                      const wasChanged = s.suggestedCat !== s.currentCat;
+                      const stillUncat = s.suggestedCat === "Uncategorized";
+                      const isBiz = s.bucket === "Opco" || s.bucket === "Holdco";
+                      const bizBuckets = ["Opco", "Holdco"];
+                      const persBuckets = ["Jon", "Jacqueline"];
+                      const poolBuckets = isBiz ? bizBuckets : persBuckets;
+                      const allCats = s.type === "income"
+                        ? [...poolBuckets.flatMap(b => INCOME_CATS[b] || []), "Uncategorized"]
+                        : [...poolBuckets.flatMap(b => [...(DEFAULT_TAX_CATS[b] || []), ...(TRANSFER_CATS[b] || [])])];
+                      const uniqueCats = [...new Set(allCats)];
+                      return (
+                        <tr key={s.txId} style={{ borderBottom: `1px solid ${C.border}22`, background: wasChanged ? C.green + "08" : stillUncat ? C.orange + "08" : "transparent" }}>
+                          <td style={{ padding: "6px", fontSize: 12, color: C.muted, whiteSpace: "nowrap" }}>{s.date}</td>
+                          <td style={{ padding: "6px", fontSize: 12, color: C.text, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={s.description}>{s.description}</td>
+                          <td style={{ padding: "6px" }}>
+                            <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 3, background: (BUCKET_COLORS[s.bucket] || C.muted) + "22", color: BUCKET_COLORS[s.bucket] || C.muted }}>{s.bucket}</span>
+                          </td>
+                          <td style={{ padding: "6px", fontSize: 12, fontFamily: "monospace", textAlign: "right", color: s.type === "income" ? C.green : C.text }}>{s.type === "income" ? "+" : "-"}{fmtFull(s.amount, s.currency)}</td>
+                          <td style={{ padding: "6px", fontSize: 11, color: s.currentCat === "Uncategorized" ? C.orange : C.muted }}>{s.currentCat}</td>
+                          <td style={{ padding: "6px" }}>
+                            <select value={s.suggestedCat} onChange={e => {
+                              const updated = [...autoCatSuggestions];
+                              updated[idx] = { ...updated[idx], suggestedCat: e.target.value };
+                              setAutoCatSuggestions(updated);
+                            }} style={{ fontSize: 12, borderRadius: 4, padding: "4px 8px", outline: "none", cursor: "pointer", background: wasChanged ? C.green + "15" : stillUncat ? C.orange + "15" : C.card2, color: C.text, border: `1px solid ${wasChanged ? C.green + "44" : stillUncat ? C.orange + "44" : C.border}` }}>
+                              {uniqueCats.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {/* Footer */}
+              <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+                <div style={{ fontSize: 11, color: C.muted }}>
+                  Rules will be saved for future transactions
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => { setShowAutoCat(false); setAutoCatSuggestions([]); }}
+                    style={{ ...s.btnSm, fontSize: 12, background: C.card2, color: C.muted }}>Cancel</button>
+                  <button onClick={applyAutoCatSuggestions}
+                    style={{ ...s.btn, fontSize: 12, background: C.accent, color: "#fff", fontWeight: 600, padding: "8px 20px" }}>
+                    Confirm & Save Rules ({autoCatSuggestions.filter(sg => sg.suggestedCat !== sg.currentCat || !txns.find(t => t.id === sg.txId)?.reviewed).length} changes)
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Accounts panel ── */}
       {cfSubTab === "accounts" && (() => {
         const acctEntries = Object.entries(bankAccounts);
         const grouped = {};
         BUCKETS.forEach(b => { grouped[b] = acctEntries.filter(([, a]) => a.bucket === b); });
+        /* NW item names for nickname autocomplete */
+        const nwItemNames = (() => {
+          const snaps = nwData?.snapshots || [];
+          const latest = snaps[0];
+          if (!latest) return [];
+          return [...new Set(latest.items.map(i => i.name))].sort();
+        })();
         const unassigned = acctEntries.filter(([, a]) => !a.bucket);
         return (
           <div>
             {/* Connect + Sync bar */}
             <div style={{ ...s.card, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 16 }}>
-              <button style={{ ...s.btn, fontSize: 12 }} onClick={async () => {
+              <button style={{ ...s.btn, fontSize: 12 }} disabled={!!plaidConnectStatus && plaidConnectStatus !== "done" && plaidConnectStatus !== "error"} onClick={async () => {
+                setPlaidConnectStatus("linking");
+                try {
+                  const tokenRes = await fetch(`${PLAID_SERVER}/api/plaid/create-link-token`, { method: "POST" });
+                  const { link_token, error: tokenErr } = await tokenRes.json();
+                  if (tokenErr) { setPlaidConnectStatus("error"); return; }
+                  if (!window.Plaid) {
+                    await new Promise((resolve, reject) => {
+                      const script = document.createElement("script");
+                      script.src = "https://cdn.plaid.com/link/v2/stable/link-initialize.js";
+                      script.onload = resolve;
+                      script.onerror = () => reject(new Error("Failed to load Plaid Link"));
+                      document.head.appendChild(script);
+                    });
+                  }
+                  const handler = window.Plaid.create({
+                    token: link_token,
+                    onSuccess: async (publicToken, metadata) => {
+                      try {
+                        setPlaidConnectStatus("exchanging");
+                        const exchRes = await fetch(`${PLAID_SERVER}/api/plaid/exchange-token`, {
+                          method: "POST", headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ public_token: publicToken, institution: metadata.institution?.name || "Unknown" }),
+                        });
+                        const conn = await exchRes.json();
+                        if (conn.error) { setPlaidConnectStatus("error"); return; }
+                        setPlaidConnectStatus("syncing");
+                        const ar = await fetch(`${PLAID_SERVER}/api/plaid/accounts/${conn.id}`);
+                        const { accounts } = await ar.json();
+                        const updated = { ...bankAccounts };
+                        const inst = conn.institution || metadata.institution?.name;
+                        accounts.forEach(a => {
+                          /* Dedup: remove old entry with same mask+institution but different ID */
+                          const dupeKey = Object.keys(updated).find(k => k !== a.id && updated[k].mask === a.mask && updated[k].institution === inst && updated[k].subtype === a.subtype);
+                          if (dupeKey) { const old = updated[dupeKey]; delete updated[dupeKey]; updated[a.id] = { ...old, lastBalance: a.balance, lastSynced: new Date().toISOString() }; }
+                          else if (!updated[a.id]) updated[a.id] = { name: a.name, institution: inst, type: a.type, subtype: a.subtype, currency: a.currency, mask: a.mask, bucket: null, enabled: true, lastBalance: a.balance, lastSynced: new Date().toISOString() };
+                          else { updated[a.id].lastBalance = a.balance; updated[a.id].lastSynced = new Date().toISOString(); }
+                        });
+                        setData(d => ({ ...d, bankAccounts: updated }));
+                        setPlaidConnectStatus("done");
+                        setTimeout(() => setPlaidConnectStatus(null), 3000);
+                      } catch (err) { setPlaidConnectStatus("error"); }
+                    },
+                    onExit: (err) => { if (err) setPlaidConnectStatus("error"); else setPlaidConnectStatus(null); },
+                  });
+                  handler.open();
+                  setPlaidConnectStatus(null); // Clear while user is in Plaid Link UI
+                } catch (e) { setPlaidConnectStatus("error"); }
+              }}>{plaidConnectStatus === "exchanging" || plaidConnectStatus === "syncing" ? "Connecting..." : "+ Connect Account"}</button>
+              <button style={{ ...s.btnSm, fontSize: 12 }} onClick={async (e) => {
+                const btn = e.currentTarget;
+                const orig = btn.textContent;
+                btn.textContent = "Syncing...";
+                btn.disabled = true;
                 try {
                   const res = await fetch(`${PLAID_SERVER}/api/plaid/connections`);
                   const conns = await res.json();
+                  if (!conns.length) { btn.textContent = "No connections"; setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2000); return; }
+                  let allAcctData = [];
                   for (const conn of conns) {
-                    const ar = await fetch(`${PLAID_SERVER}/api/plaid/accounts/${conn.id}`);
-                    const { accounts } = await ar.json();
-                    const updated = { ...bankAccounts };
-                    accounts.forEach(a => {
-                      if (!updated[a.id]) updated[a.id] = { name: a.name, institution: conn.institution, type: a.type, subtype: a.subtype, currency: a.currency, mask: a.mask, bucket: null, enabled: true, lastBalance: a.balance, lastSynced: new Date().toISOString() };
-                      else { updated[a.id].lastBalance = a.balance; updated[a.id].lastSynced = new Date().toISOString(); }
-                    });
-                    setData({ ...data, bankAccounts: updated });
+                    try {
+                      const ar = await fetch(`${PLAID_SERVER}/api/plaid/accounts/${conn.id}`);
+                      if (!ar.ok) continue;
+                      const { accounts } = await ar.json();
+                      allAcctData.push({ conn, accounts: accounts || [] });
+                    } catch (_) { /* skip failed connection, keep existing data */ }
                   }
-                } catch (e) { console.error("Sync accounts failed:", e); }
-              }}>Sync Accounts from Plaid</button>
-              <button style={{ ...s.btn, fontSize: 12 }} onClick={async () => {
+                  let count = 0;
+                  setData(prev => {
+                    const updated = { ...(prev.bankAccounts || {}) };
+                    for (const { conn, accounts } of allAcctData) {
+                      accounts.forEach(a => {
+                        const dupeKey = Object.keys(updated).find(k => k !== a.id && updated[k].mask === a.mask && updated[k].institution === conn.institution && updated[k].subtype === a.subtype);
+                        if (dupeKey) { const old = updated[dupeKey]; delete updated[dupeKey]; updated[a.id] = { ...old, lastBalance: a.balance, lastSynced: new Date().toISOString() }; }
+                        else if (!updated[a.id]) updated[a.id] = { name: a.name, institution: conn.institution, type: a.type, subtype: a.subtype, currency: a.currency, mask: a.mask, bucket: null, enabled: true, lastBalance: a.balance, lastSynced: new Date().toISOString() };
+                        else { updated[a.id].lastBalance = a.balance; updated[a.id].lastSynced = new Date().toISOString(); }
+                        count++;
+                      });
+                    }
+                    return { ...prev, bankAccounts: updated };
+                  });
+                  btn.textContent = `Synced ${count} accounts`;
+                  btn.style.color = C.green;
+                  setTimeout(() => { btn.textContent = orig; btn.disabled = false; btn.style.color = ""; }, 2500);
+                } catch (e) {
+                  console.error("Sync accounts failed:", e);
+                  btn.textContent = "Sync failed";
+                  btn.style.color = C.red;
+                  setTimeout(() => { btn.textContent = orig; btn.disabled = false; btn.style.color = ""; }, 2500);
+                }
+              }}>Sync Accounts</button>
+              <button style={{ ...s.btnSm, fontSize: 12 }} onClick={async () => {
                 try {
                   const res = await fetch(`${PLAID_SERVER}/api/plaid/connections`);
                   const conns = await res.json();
@@ -3344,6 +4954,41 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
               <span style={{ fontSize: 11, color: C.muted }}>{acctEntries.length} accounts connected</span>
             </div>
 
+            {/* Connection progress bar */}
+            {plaidConnectStatus && plaidConnectStatus !== "done" && plaidConnectStatus !== "error" && (() => {
+              const steps = ["linking", "exchanging", "syncing"];
+              const labels = { linking: "Opening Plaid Link...", exchanging: "Securing connection...", syncing: "Syncing accounts..." };
+              const idx = steps.indexOf(plaidConnectStatus);
+              const pct = idx >= 0 ? ((idx + 1) / steps.length) * 100 : 0;
+              return (
+                <div style={{ ...s.card, marginBottom: 16, padding: "14px 16px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{labels[plaidConnectStatus] || "Connecting..."}</span>
+                    <span style={{ fontSize: 11, color: C.muted }}>Step {idx + 1} of {steps.length}</span>
+                  </div>
+                  <div style={{ width: "100%", height: 6, background: C.card2, borderRadius: 3, overflow: "hidden" }}>
+                    <div style={{ width: `${pct}%`, height: "100%", background: C.accent, borderRadius: 3, transition: "width 0.5s ease" }} />
+                  </div>
+                </div>
+              );
+            })()}
+
+            {plaidConnectStatus === "done" && (
+              <div style={{ ...s.card, marginBottom: 16, padding: "12px 16px", borderLeft: `3px solid ${C.green}` }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: C.green }}>Accounts connected successfully!</span>
+              </div>
+            )}
+
+            {plaidConnectStatus === "error" && (
+              <div style={{ ...s.card, marginBottom: 16, padding: "12px 16px", borderLeft: `3px solid ${C.red}` }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: C.red }}>Connection failed. Please try again.</span>
+                <button style={{ ...s.btnSm, fontSize: 11, marginLeft: 12 }} onClick={() => setPlaidConnectStatus(null)}>Dismiss</button>
+              </div>
+            )}
+
+            {/* NW name datalist for autocomplete */}
+            <datalist id="nw-item-names">{nwItemNames.map(n => <option key={n} value={n} />)}</datalist>
+
             {/* Unassigned accounts */}
             {unassigned.length > 0 && (
               <div style={{ ...s.card, borderLeft: `3px solid ${C.orange}`, marginBottom: 16 }}>
@@ -3354,6 +4999,8 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
                       <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{acct.name} {acct.mask ? `*${acct.mask}` : ""}</div>
                       <div style={{ fontSize: 11, color: C.muted }}>{acct.institution} · {acct.type}/{acct.subtype} · {acct.currency}</div>
                     </div>
+                    <input list="nw-item-names" placeholder="NW Nickname…" value={acct.nickname || ""} style={{ ...s.input, fontSize: 11, width: 150 }}
+                      onChange={e => setData({ ...data, bankAccounts: { ...bankAccounts, [id]: { ...acct, nickname: e.target.value } } })} />
                     <div style={{ fontSize: 13, fontWeight: 600, color: C.text, fontFamily: "monospace" }}>{acct.lastBalance != null ? fmtFull(acct.lastBalance) : "—"}</div>
                     <select style={{ ...s.select, fontSize: 12, width: 130 }} value="" onChange={e => {
                       const updated = { ...bankAccounts, [id]: { ...acct, bucket: e.target.value } };
@@ -3375,14 +5022,17 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
                 <div key={b} style={{ ...s.card, marginBottom: 12 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: BUCKET_COLORS[b], textTransform: "uppercase", marginBottom: 10 }}>{b}</div>
                   {items.map(([id, acct]) => (
-                    <div key={id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: `1px solid ${C.border}10` }}>
-                      <div style={{ width: 8, height: 8, borderRadius: 4, background: acct.enabled ? C.green : C.muted }} />
-                      <div style={{ flex: 1 }}>
+                    <div key={id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${C.border}10`, flexWrap: "wrap" }}>
+                      <div style={{ width: 8, height: 8, borderRadius: 4, background: acct.enabled ? C.green : C.muted, flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 140 }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{acct.name} {acct.mask ? `*${acct.mask}` : ""}</div>
                         <div style={{ fontSize: 11, color: C.muted }}>{acct.institution} · {acct.type}/{acct.subtype} · Last sync: {acct.lastSynced ? new Date(acct.lastSynced).toLocaleDateString() : "never"}</div>
+                        {acct.nickname && <div style={{ fontSize: 11, fontWeight: 600, color: C.accent }}>= {acct.nickname}</div>}
                       </div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: C.text, fontFamily: "monospace" }}>{acct.lastBalance != null ? fmtFull(acct.lastBalance) : "—"}</div>
-                      <button style={{ ...s.btnSm, fontSize: 11 }} onClick={() => { setFilterAccountId(id); setCfSubTab("transactions"); }}>View Txns</button>
+                      <input list="nw-item-names" placeholder="NW Nickname…" value={acct.nickname || ""} style={{ ...s.input, fontSize: 11, width: 150 }}
+                        onChange={e => setData({ ...data, bankAccounts: { ...bankAccounts, [id]: { ...acct, nickname: e.target.value } } })} />
+                      <div style={{ fontSize: 13, fontWeight: 600, color: C.text, fontFamily: "monospace", flexShrink: 0 }}>{acct.lastBalance != null ? fmtFull(acct.lastBalance) : "—"}</div>
+                      <button style={{ ...s.btnSm, fontSize: 11 }} onClick={() => { setFilterAccountId(id); setCfSubTab("transactions"); }}>Txns</button>
                       <select style={{ ...s.select, fontSize: 11, width: 100 }} value={acct.bucket || ""} onChange={e => {
                         const updated = { ...bankAccounts, [id]: { ...acct, bucket: e.target.value || null } };
                         setData({ ...data, bankAccounts: updated });
@@ -3528,6 +5178,537 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
                 </div>
               )}
             </div>
+          </div>
+        );
+      })()}
+
+      {/* ═══ GOALS sub-tab ═══ */}
+      {cfSubTab === "goals" && (() => {
+        const goals = data.budgetTargets || {};
+
+        /* Compute actuals for current period */
+        const actualsByCategory = {};
+        nonTransfer.filter(t => t.type === "expense").forEach(t => {
+          const cat = t.category;
+          actualsByCategory[cat] = (actualsByCategory[cat] || 0) + toBase(t.amount, t.currency || "CAD", rates);
+        });
+
+        /* Also compute group-level actuals */
+        const actualsByGroup = {};
+        viewBuckets.forEach(bucket => {
+          Object.entries(EXPENSE_CATS[bucket] || {}).forEach(([groupName, subcats]) => {
+            const groupTotal = subcats.reduce((sum, cat) => sum + (actualsByCategory[cat] || 0), 0);
+            actualsByGroup[groupName] = (actualsByGroup[groupName] || 0) + groupTotal;
+          });
+        });
+
+        /* All possible categories and groups for the dropdown */
+        const allCatOptions = [];
+        viewBuckets.forEach(bucket => {
+          Object.entries(EXPENSE_CATS[bucket] || {}).forEach(([groupName, subcats]) => {
+            if (!allCatOptions.find(o => o.value === groupName)) {
+              allCatOptions.push({ value: groupName, label: groupName, isGroup: true });
+            }
+            subcats.forEach(cat => {
+              if (!allCatOptions.find(o => o.value === cat)) {
+                allCatOptions.push({ value: cat, label: `  └─ ${cat}`, isGroup: false });
+              }
+            });
+          });
+        });
+
+        const activeGoals = Object.entries(goals).filter(([cat]) => {
+          return allCatOptions.some(o => o.value === cat);
+        });
+
+        const addGoal = () => {
+          if (!goalCategory || !goalAmount) return;
+          setData({ ...data, budgetTargets: { ...goals, [goalCategory]: { monthly: parseFloat(goalAmount), note: goalNote || undefined } } });
+          setGoalCategory(""); setGoalAmount(""); setGoalNote(""); setAddingGoal(false);
+        };
+
+        const removeGoal = (cat) => {
+          const ng = { ...goals }; delete ng[cat];
+          setData({ ...data, budgetTargets: ng });
+        };
+
+        const totalBudgeted = activeGoals.reduce((sum, [, g]) => sum + (g.monthly || 0), 0);
+        const totalActual = activeGoals.reduce((sum, [cat]) => sum + (actualsByCategory[cat] || actualsByGroup[cat] || 0), 0);
+
+        return (
+          <div>
+            {/* Summary cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginBottom: 20 }}>
+              <div style={{ ...s.card, textAlign: "center" }}>
+                <div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", marginBottom: 4 }}>Monthly Budget</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: C.text, fontFamily: "monospace" }}>{mask(fmtFull(totalBudgeted), hide)}</div>
+              </div>
+              <div style={{ ...s.card, textAlign: "center" }}>
+                <div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", marginBottom: 4 }}>Actual Spend</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: totalActual > totalBudgeted ? C.red : C.green, fontFamily: "monospace" }}>{mask(fmtFull(totalActual), hide)}</div>
+              </div>
+              <div style={{ ...s.card, textAlign: "center" }}>
+                <div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", marginBottom: 4 }}>Remaining</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: totalBudgeted - totalActual >= 0 ? C.green : C.red, fontFamily: "monospace" }}>{mask((totalBudgeted - totalActual >= 0 ? "" : "-") + fmtFull(Math.abs(totalBudgeted - totalActual)), hide)}</div>
+              </div>
+            </div>
+
+            {/* Goals list */}
+            <div style={{ ...s.card, marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.text, textTransform: "uppercase" }}>Budget Goals</div>
+                <button style={{ ...s.btn, fontSize: 11 }} onClick={() => setAddingGoal(!addingGoal)}>
+                  {addingGoal ? "Cancel" : "+ Add Goal"}
+                </button>
+              </div>
+
+              {addingGoal && (
+                <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center", flexWrap: "wrap" }}>
+                  <select style={{ ...s.select, fontSize: 12, minWidth: 200 }} value={goalCategory} onChange={e => setGoalCategory(e.target.value)}>
+                    <option value="">Select category...</option>
+                    {allCatOptions.filter(o => !goals[o.value]).map(o => (
+                      <option key={o.value} value={o.value} style={{ fontWeight: o.isGroup ? 700 : 400 }}>{o.label}</option>
+                    ))}
+                  </select>
+                  <input type="number" style={{ ...s.input, width: 110, fontSize: 12 }} placeholder="Monthly $" value={goalAmount} onChange={e => setGoalAmount(e.target.value)} />
+                  <input style={{ ...s.input, width: 180, fontSize: 12 }} placeholder="Note (optional)" value={goalNote} onChange={e => setGoalNote(e.target.value)} />
+                  <button style={{ ...s.btn, fontSize: 12, background: C.accent, color: "#fff" }} onClick={addGoal}>Save</button>
+                </div>
+              )}
+
+              {activeGoals.length === 0 && !addingGoal && (
+                <div style={{ textAlign: "center", padding: 30, color: C.muted }}>
+                  <div style={{ fontSize: 13, marginBottom: 6 }}>No budget goals set yet</div>
+                  <div style={{ fontSize: 11 }}>Add goals for expense groups or categories to track your spending and work toward decreasing costs.</div>
+                </div>
+              )}
+
+              {activeGoals.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {activeGoals.sort((a, b) => {
+                    const aIsGroup = !!Object.values(EXPENSE_CATS).some(groups => groups[a[0]]);
+                    const bIsGroup = !!Object.values(EXPENSE_CATS).some(groups => groups[b[0]]);
+                    if (aIsGroup !== bIsGroup) return aIsGroup ? -1 : 1;
+                    return a[0].localeCompare(b[0]);
+                  }).map(([cat, goal]) => {
+                    const isGroup = Object.values(EXPENSE_CATS).some(groups => groups[cat]);
+                    const actual = actualsByCategory[cat] || actualsByGroup[cat] || 0;
+                    const budget = goal.monthly || 0;
+                    const ratio = budget > 0 ? actual / budget : 0;
+                    const remaining = budget - actual;
+                    const barColor = ratio >= 1 ? C.red : ratio >= 0.8 ? C.orange : C.green;
+                    const pctLabel = budget > 0 ? `${Math.round(ratio * 100)}%` : "—";
+
+                    return (
+                      <div key={cat} style={{ background: C.card2, borderRadius: 8, padding: "12px 14px", border: ratio >= 1 ? `1px solid ${C.red}33` : `1px solid ${C.border}` }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            {isGroup && <span style={{ fontSize: 8, background: C.accent + "22", color: C.accent, padding: "1px 6px", borderRadius: 4, fontWeight: 700, textTransform: "uppercase" }}>Group</span>}
+                            <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{cat}</span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <span style={{ fontSize: 18, fontWeight: 700, color: barColor, fontFamily: "monospace" }}>{pctLabel}</span>
+                            <button onClick={() => removeGoal(cat)} style={{ background: "transparent", border: "none", color: C.muted, cursor: "pointer", fontSize: 14, padding: "0 4px" }}>×</button>
+                          </div>
+                        </div>
+                        <div style={{ height: 6, borderRadius: 3, background: C.border, overflow: "hidden", marginBottom: 6 }}>
+                          <div style={{ height: "100%", borderRadius: 3, background: barColor, width: `${Math.min(100, ratio * 100)}%`, transition: "width 0.3s" }} />
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+                          <span style={{ color: C.muted }}>Spent: <span style={{ color: C.text, fontWeight: 600, fontFamily: "monospace" }}>{mask(fmtFull(actual), hide)}</span></span>
+                          <span style={{ color: C.muted }}>Budget: <span style={{ fontWeight: 600, fontFamily: "monospace" }}>{mask(fmtFull(budget), hide)}</span></span>
+                          <span style={{ color: remaining >= 0 ? C.green : C.red, fontWeight: 600, fontFamily: "monospace" }}>{remaining >= 0 ? `${mask(fmtFull(remaining), hide)} left` : `${mask(fmtFull(Math.abs(remaining)), hide)} over`}</span>
+                        </div>
+                        {goal.note && <div style={{ fontSize: 10, color: C.muted, marginTop: 4, fontStyle: "italic" }}>{goal.note}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Quick tips section */}
+            <div style={{ ...s.card, opacity: 0.7 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", marginBottom: 8 }}>Tips for Decreasing Expenses</div>
+              <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.6 }}>
+                Set group-level goals (e.g. "Ecomm House Variable Expenses") for the big picture, or category-level goals to drill into specific areas.
+                Review the Subscriptions tab regularly to cancel unused services. Check the Auto Categorize button in Transactions to catch mis-categorized spending.
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {cfSubTab === "subscriptions" && (() => {
+        /* Auto-fix known frequencies, categories, and amounts for existing subs */
+        const rawSubs = data.subscriptions || [];
+        let needsFix = false;
+        /* Build merchant→latest transaction map for amount correction */
+        const merchantLatest = {};
+        txns.filter(t => t.type === "expense").forEach(t => {
+          const norm = normalizeMerchant(t.description);
+          if (!merchantLatest[norm] || t.date > merchantLatest[norm].date) merchantLatest[norm] = t;
+        });
+        const fixedSubs = rawSubs.map(sub => {
+          const key = (sub._matchKey || sub.name).toLowerCase();
+          const knownFreq = Object.entries(KNOWN_FREQUENCIES).find(([kw]) => key.includes(kw));
+          const knownCat = Object.entries(KNOWN_SUB_CATEGORIES).find(([kw]) => key.includes(kw));
+          const updates = {};
+          if (knownFreq && sub.frequency !== knownFreq[1]) updates.frequency = knownFreq[1];
+          if (knownCat && sub.category !== knownCat[1]) updates.category = knownCat[1];
+          /* Fix amount to most recent matching transaction */
+          const latestTx = merchantLatest[key];
+          if (latestTx && Math.round(latestTx.amount * 100) !== Math.round(sub.amount * 100)) {
+            updates.amount = Math.round(latestTx.amount * 100) / 100;
+            updates.lastDate = latestTx.date;
+          }
+          if (Object.keys(updates).length > 0) { needsFix = true; return { ...sub, ...updates }; }
+          return sub;
+        });
+        /* Also remove gas stations / non-subs that slipped through */
+        const skipNames = ["chv", "chevron", "opa", "andres car wash", "paybyphone", "pay by phone"];
+        const cleanedSubs = fixedSubs.filter(sub => {
+          const key = (sub._matchKey || sub.name).toLowerCase();
+          const shouldSkip = skipNames.some(s => key.includes(s));
+          if (shouldSkip) needsFix = true;
+          return !shouldSkip;
+        });
+        if (needsFix) {
+          setTimeout(() => setData(prev => ({ ...prev, subscriptions: cleanedSubs })), 0);
+        }
+        const allSubs = needsFix ? cleanedSubs : rawSubs;
+        const subs = allSubs.filter(s2 => viewBuckets.includes(s2.bucket));
+        const monthlySubs = subs.filter(s2 => s2.frequency === "monthly");
+        const annualSubs = subs.filter(s2 => s2.frequency === "annual");
+        const quarterlySubs = subs.filter(s2 => s2.frequency === "quarterly");
+        const monthlyTotal = monthlySubs.reduce((sum, s2) => sum + Number(s2.amount || 0), 0);
+        const annualTotal = annualSubs.reduce((sum, s2) => sum + Number(s2.amount || 0), 0);
+        const quarterlyTotal = quarterlySubs.reduce((sum, s2) => sum + Number(s2.amount || 0), 0);
+        const grandMonthly = monthlyTotal + annualTotal / 12 + quarterlyTotal / 3;
+
+        /* detectRecurring is defined at component level (above useMemo) for useEffect access */
+
+        const addSub = () => {
+          if (!newSub.name || !newSub.amount) return;
+          const sub = { id: uid(), ...newSub, amount: parseFloat(newSub.amount) };
+          setData({ ...data, subscriptions: [...allSubs, sub] });
+          setNewSub({ name: "", amount: "", frequency: "monthly", bucket: "Opco", account: "", category: "" });
+        };
+        const deleteSub = (id) => setData({ ...data, subscriptions: allSubs.filter(s2 => s2.id !== id) });
+        const updateSub = (id, updates) => setData({ ...data, subscriptions: allSubs.map(s2 => s2.id === id ? { ...s2, ...updates } : s2) });
+
+        /* Find matching transactions for a subscription */
+        const getSubHistory = (sub) => {
+          const key = sub._matchKey || sub.name.toLowerCase();
+          return txns.filter(t => {
+            const norm = normalizeMerchant(t.description);
+            return norm === key || norm.includes(key) || key.includes(norm);
+          }).sort((a, b) => new Date(b.date) - new Date(a.date));
+        };
+
+        const renderSubRow = (sub) => {
+          const isEdit = editingSub === sub.id;
+          const isExpanded = expandedSub === sub.id;
+          const history = isExpanded ? getSubHistory(sub) : [];
+          return (
+            <React.Fragment key={sub.id}>
+              <tr style={{ borderBottom: `1px solid ${C.border}15`, cursor: isEdit ? "default" : "pointer" }}
+                onClick={() => { if (!isEdit) setExpandedSub(isExpanded ? null : sub.id); }}>
+                <td style={{ ...s.td, fontSize: 13, fontWeight: 500 }}>
+                  {isEdit ? <input style={{ ...s.input, fontSize: 12, width: "100%" }} defaultValue={sub.name} id={`sub-name-${sub.id}`} onClick={e => e.stopPropagation()} />
+                    : <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 9, color: C.muted, transition: "transform .15s", transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)" }}>▶</span>
+                        {sub.name}
+                      </span>}
+                </td>
+                <td style={{ ...s.td, fontSize: 13, fontFamily: "monospace", textAlign: "right" }}>
+                  {isEdit ? <input type="number" style={{ ...s.input, fontSize: 12, width: 80, textAlign: "right" }} defaultValue={sub.amount} id={`sub-amt-${sub.id}`} onClick={e => e.stopPropagation()} /> : `$${Number(sub.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
+                </td>
+                <td style={{ ...s.td, fontSize: 11 }}>
+                  {isEdit ? (
+                    <select style={{ ...s.select, fontSize: 11 }} defaultValue={sub.frequency} id={`sub-freq-${sub.id}`} onClick={e => e.stopPropagation()}>
+                      <option value="monthly">Monthly</option>
+                      <option value="quarterly">Quarterly</option>
+                      <option value="annual">Annual</option>
+                    </select>
+                  ) : sub.frequency === "annual" ? "Annual" : sub.frequency === "quarterly" ? "Quarterly" : "Monthly"}
+                </td>
+                <td style={{ ...s.td, fontSize: 11, color: C.muted }}>
+                  {isEdit ? <input style={{ ...s.input, fontSize: 11, width: "100%" }} defaultValue={sub.category} id={`sub-cat-${sub.id}`} placeholder="Category" onClick={e => e.stopPropagation()} /> : (sub.category || "—")}
+                </td>
+                <td style={{ ...s.td, fontSize: 11, color: C.muted, whiteSpace: "nowrap" }}>
+                  {sub.lastPaid || "—"}
+                </td>
+                <td style={{ ...s.td, whiteSpace: "nowrap" }} onClick={e => e.stopPropagation()}>
+                  {isEdit ? (<>
+                    <button style={{ ...s.btnSm, fontSize: 10, marginRight: 4 }} onClick={() => {
+                      updateSub(sub.id, {
+                        name: document.getElementById(`sub-name-${sub.id}`)?.value || sub.name,
+                        amount: parseFloat(document.getElementById(`sub-amt-${sub.id}`)?.value) || sub.amount,
+                        frequency: document.getElementById(`sub-freq-${sub.id}`)?.value || sub.frequency,
+                        category: document.getElementById(`sub-cat-${sub.id}`)?.value || "",
+                      });
+                      setEditingSub(null);
+                    }}>Save</button>
+                    <button style={{ ...s.btnSm, fontSize: 10 }} onClick={() => setEditingSub(null)}>Cancel</button>
+                  </>) : (<>
+                    <button style={{ ...s.btnSm, fontSize: 10, marginRight: 4 }} onClick={() => setEditingSub(sub.id)}>Edit</button>
+                    <button style={{ ...s.btnSm, fontSize: 10, color: C.red }} onClick={() => deleteSub(sub.id)}>Del</button>
+                  </>)}
+                </td>
+              </tr>
+              {/* Expanded payment history */}
+              {isExpanded && (
+                <tr>
+                  <td colSpan={6} style={{ padding: 0, background: C.bg2 }}>
+                    <div style={{ padding: "8px 16px 12px 28px", borderBottom: `1px solid ${C.border}` }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase", marginBottom: 6 }}>
+                        Payment History ({history.length} payment{history.length !== 1 ? "s" : ""})
+                      </div>
+                      {history.length > 0 ? (
+                        <div style={{ maxHeight: 200, overflowY: "auto" }}>
+                          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                            <thead>
+                              <tr>
+                                <th style={{ ...s.th, fontSize: 9, textAlign: "left", padding: "2px 8px" }}>Date</th>
+                                <th style={{ ...s.th, fontSize: 9, textAlign: "right", padding: "2px 8px" }}>Amount</th>
+                                <th style={{ ...s.th, fontSize: 9, textAlign: "left", padding: "2px 8px" }}>Description</th>
+                                <th style={{ ...s.th, fontSize: 9, textAlign: "left", padding: "2px 8px" }}>Bucket</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {history.map((h, hi) => (
+                                <tr key={hi} style={{ borderBottom: `1px solid ${C.border}10` }}>
+                                  <td style={{ padding: "3px 8px", fontSize: 11, color: C.text, whiteSpace: "nowrap" }}>{h.date}</td>
+                                  <td style={{ padding: "3px 8px", fontSize: 11, fontFamily: "monospace", textAlign: "right", color: C.text }}>${Number(h.amount).toFixed(2)}</td>
+                                  <td style={{ padding: "3px 8px", fontSize: 11, color: C.muted, maxWidth: 250, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.description}</td>
+                                  <td style={{ padding: "3px 8px" }}><span style={{ ...s.badge(BUCKET_COLORS[h.bucket]), fontSize: 9, padding: "1px 5px" }}>{h.bucket}</span></td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 11, color: C.muted }}>No matching transactions found in imported data.</div>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </React.Fragment>
+          );
+        };
+
+        return (
+          <div>
+            {/* Summary cards — business vs personal */}
+            {(() => {
+              const toMo = (sub) => { const a = Number(sub.amount || 0); return sub.frequency === "annual" ? a / 12 : sub.frequency === "quarterly" ? a / 3 : a; };
+              const bizSubs = allSubs.filter(sub => sub.bucket === "Opco" || sub.bucket === "Holdco");
+              const persSubs = allSubs.filter(sub => sub.bucket === "Jon" || sub.bucket === "Jacqueline");
+              const bizMonthly = bizSubs.reduce((sum, sub) => sum + toMo(sub), 0);
+              const persMonthly = persSubs.reduce((sum, sub) => sum + toMo(sub), 0);
+              const totalMonthly = bizMonthly + persMonthly;
+              const f2 = (n) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+              return (
+                <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+                  <div style={{ ...s.card, flex: 1, minWidth: 150, textAlign: "center", borderTop: `2px solid ${BUCKET_COLORS.Opco}` }}>
+                    <div style={{ fontSize: 9, color: C.muted, textTransform: "uppercase", marginBottom: 4 }}>Business (Opco + Holdco)</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: C.text }}>${f2(bizMonthly)}/mo</div>
+                    <div style={{ fontSize: 10, color: C.muted }}>{bizSubs.length} subscription{bizSubs.length !== 1 ? "s" : ""} · ${f2(bizMonthly * 12)}/yr</div>
+                  </div>
+                  <div style={{ ...s.card, flex: 1, minWidth: 150, textAlign: "center", borderTop: `2px solid ${BUCKET_COLORS.Jon}` }}>
+                    <div style={{ fontSize: 9, color: C.muted, textTransform: "uppercase", marginBottom: 4 }}>Personal</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: C.text }}>${f2(persMonthly)}/mo</div>
+                    <div style={{ fontSize: 10, color: C.muted }}>{persSubs.length} subscription{persSubs.length !== 1 ? "s" : ""} · ${f2(persMonthly * 12)}/yr</div>
+                  </div>
+                  <div style={{ ...s.card, flex: 1, minWidth: 150, textAlign: "center" }}>
+                    <div style={{ fontSize: 9, color: C.muted, textTransform: "uppercase", marginBottom: 4 }}>Total Recurring</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: C.accent }}>${f2(totalMonthly)}/mo</div>
+                    <div style={{ fontSize: 10, color: C.muted }}>${f2(totalMonthly * 12)}/yr</div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Add subscription form */}
+            <div style={{ ...s.card, marginBottom: 16, padding: "14px 16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>Add Subscription / Bill</div>
+                <button style={{ ...s.btnSm, fontSize: 10, background: C.orange + "18", color: C.orange, border: `1px solid ${C.orange}33`, padding: "4px 10px" }} onClick={() => {
+                  const detected = detectRecurring();
+                  const toAdd = detected.filter(d => !allSubs.some(s2 => s2.name.toLowerCase() === d.name.toLowerCase()));
+                  setDetectedSubs(toAdd.map(d => ({ ...d, selected: true })));
+                }}>Detect from Transactions</button>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+                <input style={{ ...s.input, fontSize: 12 }} placeholder="Name (e.g. Netflix, Property Tax)"
+                  value={newSub.name} onChange={e => setNewSub({ ...newSub, name: e.target.value })} />
+                <input type="number" style={{ ...s.input, fontSize: 12, textAlign: "right" }} placeholder="Amount"
+                  value={newSub.amount} onChange={e => setNewSub({ ...newSub, amount: e.target.value })} />
+                <select style={{ ...s.select, fontSize: 12 }} value={newSub.frequency}
+                  onChange={e => setNewSub({ ...newSub, frequency: e.target.value })}>
+                  <option value="monthly">Monthly</option>
+                  <option value="quarterly">Quarterly</option>
+                  <option value="annual">Annual</option>
+                </select>
+                <select style={{ ...s.select, fontSize: 12 }} value={newSub.bucket}
+                  onChange={e => setNewSub({ ...newSub, bucket: e.target.value })}>
+                  {BUCKETS.map(b => <option key={b} value={b}>{b}</option>)}
+                </select>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8 }}>
+                <input style={{ ...s.input, fontSize: 12 }} placeholder="Category (optional)"
+                  value={newSub.category} onChange={e => setNewSub({ ...newSub, category: e.target.value })} />
+                <input style={{ ...s.input, fontSize: 12 }} placeholder="Bank/Card (optional)"
+                  value={newSub.account} onChange={e => setNewSub({ ...newSub, account: e.target.value })} />
+                <button style={{ ...s.btn, fontSize: 12, padding: "6px 20px" }} onClick={addSub}>Add</button>
+              </div>
+            </div>
+
+            {/* Detected recurring — inline review */}
+            {detectedSubs && detectedSubs.length > 0 && (
+              <div style={{ ...s.card, marginBottom: 16, borderLeft: `3px solid ${C.orange}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: C.orange, textTransform: "uppercase" }}>Detected Recurring Charges</div>
+                    <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Uncheck any you don't want, then click Add Selected</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button style={{ ...s.btn, fontSize: 11, background: C.accent, color: "#fff" }} onClick={() => {
+                      const selected = detectedSubs.filter(d => d.selected);
+                      const newS = selected.map(d => ({ id: uid(), name: d.name, amount: d.amount, frequency: d.frequency, bucket: d.bucket, account: "", category: d.category, lastPaid: d.lastDate, _matchKey: d._matchKey || d.name.toLowerCase() }));
+                      setData({ ...data, subscriptions: [...allSubs, ...newS] });
+                      setDetectedSubs(null);
+                    }}>Add Selected ({detectedSubs.filter(d => d.selected).length})</button>
+                    <button style={{ ...s.btnSm, fontSize: 11, color: C.muted }} onClick={() => setDetectedSubs(null)}>Dismiss</button>
+                  </div>
+                </div>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      <th style={{ ...s.th, width: 30 }}></th>
+                      <th style={{ ...s.th, textAlign: "left", fontSize: 10 }}>Name</th>
+                      <th style={{ ...s.th, fontSize: 10, textAlign: "right" }}>Amount</th>
+                      <th style={{ ...s.th, fontSize: 10 }}>Freq</th>
+                      <th style={{ ...s.th, fontSize: 10 }}>Bucket</th>
+                      <th style={{ ...s.th, fontSize: 10 }}>Hits</th>
+                      <th style={{ ...s.th, fontSize: 10 }}>Last Paid</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detectedSubs.map((d, i) => (
+                      <tr key={i} style={{ borderBottom: `1px solid ${C.border}15`, opacity: d.selected ? 1 : 0.4 }}>
+                        <td style={{ ...s.td, textAlign: "center" }}>
+                          <input type="checkbox" checked={d.selected} onChange={() => {
+                            const upd = [...detectedSubs]; upd[i] = { ...upd[i], selected: !upd[i].selected }; setDetectedSubs(upd);
+                          }} style={{ accentColor: C.accent }} />
+                        </td>
+                        <td style={{ ...s.td, fontSize: 12, fontWeight: 500 }}>{d.name}</td>
+                        <td style={{ ...s.td, fontSize: 12, fontFamily: "monospace", textAlign: "right" }}>${d.amount.toFixed(2)}</td>
+                        <td style={{ ...s.td, fontSize: 11, textTransform: "capitalize" }}>{d.frequency}</td>
+                        <td style={{ ...s.td }}><span style={{ ...s.badge(BUCKET_COLORS[d.bucket]), fontSize: 10, padding: "1px 6px" }}>{d.bucket}</span></td>
+                        <td style={{ ...s.td, fontSize: 11, textAlign: "center", color: C.muted }}>{d.occurrences}x</td>
+                        <td style={{ ...s.td, fontSize: 11, color: C.muted }}>{d.lastDate}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {/* Auto-dismiss empty detection result */}
+            {detectedSubs && detectedSubs.length === 0 && (() => { setTimeout(() => setDetectedSubs(null), 0); return null; })()}
+
+            {/* Subscriptions grouped by bucket */}
+            {(() => {
+              const bucketGroups = [
+                { label: "Opco", buckets: ["Opco"], color: BUCKET_COLORS.Opco },
+                { label: "Holdco", buckets: ["Holdco"], color: BUCKET_COLORS.Holdco },
+                { label: "Personal", buckets: ["Jon", "Jacqueline"], color: BUCKET_COLORS.Jon },
+              ];
+              const toMonthly = (sub) => {
+                const amt = Number(sub.amount || 0);
+                if (sub.frequency === "annual") return amt / 12;
+                if (sub.frequency === "quarterly") return amt / 3;
+                return amt;
+              };
+              let grandTotal = 0;
+
+              return (<>
+                {bucketGroups.map(group => {
+                  const groupSubs = allSubs.filter(sub => group.buckets.includes(sub.bucket))
+                    .sort((a, b) => toMonthly(b) - toMonthly(a));
+                  if (groupSubs.length === 0) return null;
+                  const groupMonthly = groupSubs.reduce((sum, sub) => sum + toMonthly(sub), 0);
+                  grandTotal += groupMonthly;
+
+                  return (
+                    <div key={group.label} style={{ ...s.card, marginBottom: 16 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ width: 10, height: 10, borderRadius: 5, background: group.color }} />
+                          <span style={{ fontSize: 13, fontWeight: 700, color: C.text, textTransform: "uppercase" }}>{group.label}</span>
+                          <span style={{ fontSize: 11, color: C.muted }}>{groupSubs.length} subscription{groupSubs.length !== 1 ? "s" : ""}</span>
+                        </div>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: group.color, fontFamily: "monospace" }}>
+                          ${groupMonthly.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/mo
+                        </span>
+                      </div>
+                      <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+                        <thead>
+                          <tr>
+                            <th style={{ ...s.th, textAlign: "left", fontSize: 11, width: "22%" }}>Name</th>
+                            <th style={{ ...s.th, fontSize: 11, textAlign: "right", width: "13%" }}>Amount</th>
+                            <th style={{ ...s.th, fontSize: 11, width: "10%" }}>Freq</th>
+                            <th style={{ ...s.th, fontSize: 11, width: "22%" }}>Category</th>
+                            <th style={{ ...s.th, fontSize: 11, width: "15%" }}>Last Paid</th>
+                            <th style={{ ...s.th, fontSize: 11, width: "18%" }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>{groupSubs.map(renderSubRow)}</tbody>
+                        <tfoot>
+                          <tr style={{ borderTop: `2px solid ${C.border}`, background: C.card2 + "33" }}>
+                            <td style={{ padding: "8px 4px", fontSize: 12, fontWeight: 700, color: C.text }}>
+                              {group.label} Total
+                            </td>
+                            <td style={{ padding: "8px 4px", fontSize: 12, fontWeight: 700, textAlign: "right", fontFamily: "monospace", color: group.color }}>
+                              ${groupMonthly.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/mo
+                            </td>
+                            <td colSpan={4}></td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  );
+                })}
+
+                {/* Grand total */}
+                {allSubs.length > 0 && (
+                  <div style={{ ...s.card, marginBottom: 16, background: C.card2 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: C.text, textTransform: "uppercase" }}>Total Recurring</span>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: C.accent, fontFamily: "monospace" }}>${grandTotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/mo</div>
+                        <div style={{ fontSize: 11, color: C.muted }}>${(grandTotal * 12).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/yr</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {allSubs.length === 0 && !detectedSubs && (
+                  <div style={{ ...s.card, textAlign: "center", padding: 40 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 6 }}>No subscriptions yet</div>
+                    <div style={{ fontSize: 12, color: C.muted }}>Detecting recurring charges from your transactions...</div>
+                  </div>
+                )}
+                {allSubs.length === 0 && detectedSubs && detectedSubs.length === 0 && (
+                  <div style={{ ...s.card, textAlign: "center", padding: 40 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 6 }}>No subscriptions found</div>
+                    <div style={{ fontSize: 12, color: C.muted }}>Add subscriptions manually above, or click "Detect from Transactions" after importing more transactions.</div>
+                  </div>
+                )}
+              </>);
+            })()}
           </div>
         );
       })()}
@@ -3851,6 +6032,177 @@ function SettingsTab({ settings, setSettings, rates, setRates, theme, s: ss, tab
           })}
         </div>
       )}
+
+      {/* SMS Alerts are in Portfolio > Alerts tab */
+      /* REMOVED — old settings alerts UI */
+      }{false && (() => {
+        const sms_REMOVED = settings.smsAlerts || DEFAULT_SETTINGS.smsAlerts;
+        const drops = sms_REMOVED.dropAlerts || [];
+        const update = (patch) => setSettings({ ...settings, smsAlerts: { ...sms_REMOVED, ...patch } });
+        const updateDrops = (newDrops) => update({ dropAlerts: newDrops });
+        const [alertStatus, setAlertStatus] = React.useState(null);
+        const [testResult, setTestResult] = React.useState(null);
+        const [newDrop, setNewDrop] = React.useState({ symbol: "", tiers: "" });
+
+        React.useEffect(() => {
+          fetch(`${PLAID_SERVER}/api/alerts/status`).then(r => r.json()).then(setAlertStatus).catch(() => {});
+        }, []);
+
+        const sendTest = async () => {
+          setTestResult("Sending...");
+          try {
+            const r = await fetch(`${PLAID_SERVER}/api/alerts/test`, { method: "POST" });
+            const d = await r.json();
+            setTestResult(d.ok ? "✓ Test SMS sent!" : `✗ ${d.error}`);
+          } catch (err) {
+            setTestResult(`✗ ${err.message}`);
+          }
+          setTimeout(() => setTestResult(null), 5000);
+        };
+
+        const chk = (label, key) => (
+          <label key={key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer" }}>
+            <input type="checkbox" checked={!!sms[key]} onChange={e => update({ [key]: e.target.checked })}
+              style={{ accentColor: C.orange }} />
+            <span style={{ fontSize: 13, color: C.text }}>{label}</span>
+          </label>
+        );
+
+        const addDropAlert = () => {
+          const sym = newDrop.symbol.trim().toUpperCase();
+          const tiers = newDrop.tiers.split(",").map(t => parseFloat(t.trim())).filter(t => t > 0 && t <= 100);
+          if (!sym || tiers.length === 0) return;
+          if (drops.find(d => d.symbol === sym)) {
+            updateDrops(drops.map(d => d.symbol === sym ? { ...d, tiers: tiers.sort((a,b) => a-b) } : d));
+          } else {
+            updateDrops([...drops, { symbol: sym, tiers: tiers.sort((a,b) => a-b) }]);
+          }
+          setNewDrop({ symbol: "", tiers: "" });
+        };
+
+        const removeDrop = (sym) => updateDrops(drops.filter(d => d.symbol !== sym));
+
+        return (
+          <div style={s.card}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <h3 style={{ ...s.h3, margin: 0 }}>SMS Market Alerts</h3>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                {alertStatus && (
+                  <span style={{ fontSize: 11, color: alertStatus.twilioConfigured ? C.green : C.muted }}>
+                    {alertStatus.twilioConfigured ? `Twilio ✓ ${alertStatus.phoneLast4 || ""}` : "Twilio not configured"}
+                  </span>
+                )}
+                <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                  <span style={{ fontSize: 12, color: sms.enabled ? C.green : C.muted, fontWeight: 600 }}>{sms.enabled ? "ON" : "OFF"}</span>
+                  <input type="checkbox" checked={sms.enabled} onChange={e => update({ enabled: e.target.checked })}
+                    style={{ accentColor: C.orange, width: 16, height: 16 }} />
+                </label>
+              </div>
+            </div>
+            <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
+              Get text messages when market conditions trigger. Requires Twilio credentials in server .env file.
+            </div>
+
+            {sms.enabled && (<>
+              {/* Thresholds */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Thresholds</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>Daily % Move</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <input type="number" min={1} max={50} step={0.5} style={{ ...s.input, width: 60, fontSize: 13 }}
+                        value={sms.dailyChangePct || ""} onChange={e => update({ dailyChangePct: parseFloat(e.target.value) || null })} />
+                      <span style={{ fontSize: 12, color: C.muted }}>%</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>VIX Above</div>
+                    <input type="number" min={10} max={80} step={1} style={{ ...s.input, width: 60, fontSize: 13 }}
+                      value={sms.vixAbove || ""} onChange={e => update({ vixAbove: parseFloat(e.target.value) || null })} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>VIX Below</div>
+                    <input type="number" min={5} max={50} step={1} style={{ ...s.input, width: 60, fontSize: 13 }}
+                      value={sms.vixBelow || ""} placeholder="—" onChange={e => update({ vixBelow: parseFloat(e.target.value) || null })} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Alert types */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Signal Alerts</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                  {chk("Portfolio price alerts", "portfolioAlerts")}
+                  {chk("Death cross detection", "deathCross")}
+                  {chk("Golden cross detection", "goldenCross")}
+                  {chk("RSI oversold (< 30)", "rsiOversold")}
+                  {chk("RSI overbought (> 70)", "rsiOverbought")}
+                  {chk("Watchlist buy targets", "buyTargets")}
+                </div>
+              </div>
+
+              {/* Drop from ATH alerts */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Drop from ATH Alerts</div>
+                <div style={{ fontSize: 11, color: C.muted, marginBottom: 10 }}>Get texted when a symbol drops X% from its 52-week high.</div>
+
+                {/* List of configured drop alerts */}
+                {drops.length > 0 && (
+                  <div style={{ marginBottom: 10 }}>
+                    {drops.map(da => (
+                      <div key={da.symbol} style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                        padding: "7px 10px", marginBottom: 2, borderRadius: 6, background: C.cardBg || C.bg2 || C.border + "22" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: C.orange, minWidth: 65 }}>{da.symbol}</span>
+                          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                            {da.tiers.sort((a,b) => a-b).map(t => (
+                              <span key={t} style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4,
+                                background: C.orange + "18", color: C.orange, fontWeight: 600 }}>
+                                {t}%
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <button onClick={() => removeDrop(da.symbol)}
+                          style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 14, padding: "2px 6px",
+                            opacity: 0.5 }}
+                          onMouseEnter={e => e.target.style.opacity = 1}
+                          onMouseLeave={e => e.target.style.opacity = 0.5}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add new drop alert */}
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <input type="text" placeholder="Symbol" style={{ ...s.input, width: 80, fontSize: 12 }}
+                    value={newDrop.symbol} onChange={e => setNewDrop({ ...newDrop, symbol: e.target.value })} />
+                  <input type="text" placeholder="Tiers: 5, 10, 15, 20" style={{ ...s.input, flex: 1, fontSize: 12 }}
+                    value={newDrop.tiers} onChange={e => setNewDrop({ ...newDrop, tiers: e.target.value })}
+                    onKeyDown={e => { if (e.key === "Enter") addDropAlert(); }} />
+                  <button onClick={addDropAlert}
+                    style={{ ...s.btnSm, fontSize: 11, padding: "4px 10px" }}>Add</button>
+                </div>
+              </div>
+
+              {/* Test + status */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, paddingTop: 12, borderTop: `1px solid ${C.border}33` }}>
+                <button style={{ ...s.btnSm, background: C.orange + "22", color: C.orange, border: `1px solid ${C.orange}44` }} onClick={sendTest}>
+                  Send Test SMS
+                </button>
+                {testResult && <span style={{ fontSize: 12, color: testResult.startsWith("✓") ? C.green : testResult === "Sending..." ? C.muted : C.red }}>{testResult}</span>}
+                {alertStatus && alertStatus.cooldowns && alertStatus.cooldowns.length > 0 && (
+                  <span style={{ fontSize: 11, color: C.muted, marginLeft: "auto" }}>
+                    {alertStatus.cooldowns.length} alert{alertStatus.cooldowns.length !== 1 ? "s" : ""} on cooldown
+                  </span>
+                )}
+              </div>
+            </>)}
+          </div>
+        );
+      })()}
+
     </div>
   );
 }
@@ -5421,9 +7773,9 @@ export default function MoneyClaw() {
           </div>
         ) : (
           <>
-            {tab === "overview" && <OverviewTab portData={portData} watchlistData={watchlistData} todos={todos} setTodos={setTodos} rules={rules} settings={settings} theme={theme} />}
+            {tab === "overview" && <OverviewTab portData={portData} setPortData={setPortData} watchlistData={watchlistData} nwData={nwData} rates={rates} todos={todos} setTodos={setTodos} rules={rules} settings={settings} theme={theme} hide={numbersHidden} />}
             {tab === "networth" && <NetWorthTab data={nwData} setData={setNwData} settings={settings} rates={rates} theme={theme} hide={numbersHidden} />}
-            {tab === "portfolio" && <PortfolioTab data={portData} setData={setPortData} nwData={nwData} settings={settings} rates={rates} theme={theme} hide={numbersHidden} />}
+            {tab === "portfolio" && <PortfolioTab data={portData} setData={setPortData} nwData={nwData} settings={settings} setSettings={setSettings} rates={rates} theme={theme} hide={numbersHidden} />}
             {tab === "cashflow" && <CashFlowTab data={cfData} setData={setCfData} nwData={nwData} settings={settings} rates={rates} theme={theme} hide={numbersHidden} />}
             {tab === "watchlist" && <WatchlistTab data={watchlistData} setData={setWatchlistData} portData={portData} settings={settings} rates={rates} theme={theme} />}
             {tab === "settings" && <SettingsTab settings={settings} setSettings={setSettings} rates={rates} setRates={setRates} theme={theme} tabPasswords={tabPasswords} saveTabPasswords={saveTabPasswords} handleRemovePassword={handleRemovePassword} unlockedTabs={unlockedTabs} />}
