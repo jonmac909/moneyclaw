@@ -6962,20 +6962,6 @@ function FinanceChatTab({ nwData, portData, cfData, settings, rates, theme, rule
 
   useEffect(() => { if (messages.length > 1) chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [serverMsgs]);
 
-  const pending = (todos || []).filter(t => !t.done);
-  const todoTopics = pending.map(t => ({ label: t.text, prompt: `I have a task: "${t.text}". Help me think through this and take action.`, isTodo: true }));
-  const TOPICS = [
-    ...todoTopics,
-    { label: "How to DCA properly", prompt: "How should I DCA into the market? Give me a practical strategy for dollar cost averaging." },
-    { label: "Too much cash", prompt: "I'm holding too much cash and I know I need to get it into the market. Help me make a plan to deploy it gradually." },
-    { label: "Handling fear", prompt: "The market is scary right now. How do I handle the fear of investing during a downturn? Coach me through the psychology." },
-    { label: "When to buy dips", prompt: "How do I know when a dip is worth buying? What signals should I look for before adding to positions?" },
-    { label: "Rebalancing", prompt: "When and how should I rebalance my portfolio? Give me rules to follow." },
-    { label: "Building rules", prompt: "Help me create a set of personal investing rules I can stick to. Ask me questions to understand my situation." },
-    { label: "Death cross — what now?", prompt: "A lot of my holdings have death crosses. Should I be worried? What should I do?" },
-    { label: "Market crash playbook", prompt: "If the market crashes 30-40%, what's my playbook? Help me prepare mentally and financially." },
-  ];
-
   /* ── Build financial context from all app data ── */
   const getContext = () => {
     const snaps = nwData?.snapshots || [];
@@ -7394,55 +7380,15 @@ function FinanceChatTab({ nwData, portData, cfData, settings, rates, theme, rule
   };
   const removeRule = (id) => setRules(rules.filter(r => r.id !== id));
 
-  /* ── Custom topic ── */
-  const [addingTopic, setAddingTopic] = useState(false);
-  const [customTopicLabel, setCustomTopicLabel] = useState("");
-  const [customTopics, setCustomTopics] = useState([]);
-
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 160px)", maxHeight: 800 }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
 
-      {/* Topic pills */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "8px 0", borderBottom: `1px solid ${C.border}33` }}>
-        {[...TOPICS, ...customTopics].map((t, i) => (
-          <button key={i} onClick={() => postMessage(t.prompt || t.label)} style={{
-            background: t.isTodo ? C.orange + "15" : C.card2,
-            color: t.isTodo ? C.orange : C.accent,
-            border: `1px solid ${t.isTodo ? C.orange + "40" : C.border}`,
-            borderRadius: 5,
-            padding: "5px 12px", fontSize: 11, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap",
-          }}>{t.label}</button>
-        ))}
-        {!addingTopic ? (
-          <button onClick={() => setAddingTopic(true)} style={{
-            background: "transparent", color: C.muted, border: `1px dashed ${C.border}`, borderRadius: 5,
-            padding: "5px 12px", fontSize: 11, cursor: "pointer",
-          }}>+ Add topic</button>
-        ) : (
-          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-            <input style={{ ...s.input, fontSize: 11, padding: "4px 10px", borderRadius: 5, width: 160 }}
-              placeholder="Topic name..."
-              value={customTopicLabel} onChange={e => setCustomTopicLabel(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === "Enter" && customTopicLabel.trim()) {
-                  setCustomTopics(prev => [...prev, { label: customTopicLabel.trim() }]);
-                  setCustomTopicLabel(""); setAddingTopic(false);
-                }
-                if (e.key === "Escape") setAddingTopic(false);
-              }}
-              autoFocus />
-            <button onClick={() => {
-              if (customTopicLabel.trim()) {
-                setCustomTopics(prev => [...prev, { label: customTopicLabel.trim() }]);
-                setCustomTopicLabel(""); setAddingTopic(false);
-              }
-            }} style={{ ...s.btnSm, padding: "3px 8px", fontSize: 9 }}>Add</button>
-          </div>
-        )}
+      {/* Rules toggle */}
+      <div style={{ display: "flex", justifyContent: "flex-end", padding: "6px 0" }}>
         <button onClick={() => setShowRules(!showRules)} style={{
           background: showRules ? C.accent + "20" : "transparent", color: showRules ? C.accent : C.muted,
           border: `1px solid ${showRules ? C.accent : C.border}`, borderRadius: 5,
-          padding: "5px 12px", fontSize: 11, fontWeight: 500, cursor: "pointer", marginLeft: "auto",
+          padding: "4px 10px", fontSize: 11, fontWeight: 500, cursor: "pointer",
         }}>My Rules {rules.length > 0 ? `(${rules.length})` : ""}</button>
       </div>
 
