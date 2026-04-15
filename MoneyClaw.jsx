@@ -2398,10 +2398,15 @@ function NetWorthTab({ data, setData, bankAccounts = {}, settings, rates, theme,
           placeholder="Write notes about this month's finances..." />
       </div>
 
-      {/* FX rates display */}
-      <div style={{ ...s.card, display: "flex", gap: 24 }}>
+      {/* FX rates display — live daily (ECB via Frankfurter) */}
+      <div style={{ ...s.card, display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ fontSize: 13, color: C.muted }}>USD/CAD: <strong style={{ color: C.text }}>{rates.USDCAD?.toFixed(4) || "1.3700"}</strong></div>
         <div style={{ fontSize: 13, color: C.muted }}>GBP/CAD: <strong style={{ color: C.text }}>{rates.GBPCAD?.toFixed(4) || "1.7200"}</strong></div>
+        {rates._fxDate && (
+          <div style={{ fontSize: 11, color: C.muted, marginLeft: "auto" }}>
+            Live · ECB {rates._fxDate}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -8165,6 +8170,19 @@ export default function MoneyClaw() {
       setServerLoaded(true);
     }).catch(() => setServerLoaded(true));
   }, []);
+
+  /* Pull live FX rates (ECB daily via Frankfurter, cached 24h on backend) */
+  useEffect(() => {
+    fetch("http://localhost:8484/api/fx/rates")
+      .then(r => r.json())
+      .then(fx => {
+        if (fx && typeof fx.USDCAD === "number" && typeof fx.GBPCAD === "number") {
+          setRates(prev => ({ ...prev, USDCAD: fx.USDCAD, GBPCAD: fx.GBPCAD, _fxAsOf: fx.asOf, _fxDate: fx.date }));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const demo = useMemo(() => makeDemoData(), []);
   /* ── Merge missing default holdings into persisted data (IB only) ── */
   const mergedPortfolio = useMemo(() => {

@@ -683,6 +683,31 @@ app.get("/api/calendar", async (req, res) => {
   res.json({ events });
 });
 
+/* ── Live FX rates — Frankfurter (ECB daily, no auth). 24h cache. ── */
+let fxCache = { rates: null, asOf: 0 };
+const FX_TTL_MS = 24 * 60 * 60 * 1000;
+
+app.get("/api/fx/rates", async (_req, res) => {
+  const now = Date.now();
+  if (fxCache.rates && now - fxCache.asOf < FX_TTL_MS) {
+    return res.json({ ...fxCache.rates, asOf: fxCache.asOf, fromCache: true });
+  }
+  try {
+    const [usdR, gbpR] = await Promise.all([
+      fetch("https://api.frankfurter.app/latest?from=USD&to=CAD").then(r => r.json()),
+      fetch("https://api.frankfurter.app/latest?from=GBP&to=CAD").then(r => r.json()),
+    ]);
+    const USDCAD = Number(usdR?.rates?.CAD);
+    const GBPCAD = Number(gbpR?.rates?.CAD);
+    if (!USDCAD || !GBPCAD) throw new Error("rates missing in FX response");
+    fxCache = { rates: { USDCAD, GBPCAD, date: usdR?.date || null }, asOf: now };
+    res.json({ ...fxCache.rates, asOf: now, fromCache: false });
+  } catch (e) {
+    if (fxCache.rates) return res.json({ ...fxCache.rates, asOf: fxCache.asOf, fromCache: true, stale: true, error: e.message });
+    res.status(502).json({ error: e.message });
+  }
+});
+
 /* ── File-based persistence for MoneyClaw data ── */
 const DATA_FILE = path.join(__dirname, "..", "moneyclaw-data.json");
 
