@@ -1666,14 +1666,23 @@ function NetWorthTab({ data, setData, bankAccounts = {}, settings, rates, theme,
   const rawActiveSnap = snaps.find(sn => sn.month === activeMonth);
   const isCurrentMonth = activeMonth === currentMonthKey;
 
-  /* Build a "live" snapshot for the current month: manual 10 items (from the
-     stored snap) + derived items from enabled Plaid-connected bankAccounts.
+  /* Build a "live" snapshot for the current month: manual 10 items (stored in
+     native currency, converted to CAD here) + derived items from enabled
+     Plaid-connected bankAccounts (converted native → CAD via live rates).
      Historical months render their stored snap.items unchanged. */
   const activeSnap = useMemo(() => {
     if (!rawActiveSnap || !isCurrentMonth) return rawActiveSnap;
-    const manualItems = (rawActiveSnap.items || []).filter(i => MANUAL_NW_NAMES.has(i.name));
     const usdCad = rates?.USDCAD || 1.37;
     const gbpCad = rates?.GBPCAD || 1.73;
+    const manualItems = (rawActiveSnap.items || [])
+      .filter(i => MANUAL_NW_NAMES.has(i.name))
+      .map(i => {
+        const cur = (i.currency || "CAD").toUpperCase();
+        const native = Number(i.value || 0);
+        if (cur === "USD") return { ...i, value: native * usdCad };
+        if (cur === "GBP") return { ...i, value: native * gbpCad, currency: "CAD" };
+        return i;
+      });
     const derived = Object.values(bankAccounts || {})
       .filter(ba => ba && ba.enabled !== false)
       .map(ba => {
@@ -1779,11 +1788,27 @@ function NetWorthTab({ data, setData, bankAccounts = {}, settings, rates, theme,
     setShowNewMonth(false);
   };
 
-  /* inline value editing */
+  /* inline value editing — for manual non-CAD items, user types CAD; convert
+     back to native currency for storage so display stays live with FX. */
   const updateItemValue = (itemId, newValue) => {
-    const updated = snaps.map(sn => sn.month === activeMonth ? {
-      ...sn, items: sn.items.map(i => i.id === itemId ? { ...i, value: parseFloat(newValue) || 0 } : i)
-    } : sn);
+    const typedCad = parseFloat(newValue) || 0;
+    const usdCad = rates?.USDCAD || 1.37;
+    const gbpCad = rates?.GBPCAD || 1.73;
+    const updated = snaps.map(sn => {
+      if (sn.month !== activeMonth) return sn;
+      return {
+        ...sn,
+        items: sn.items.map(i => {
+          if (i.id !== itemId) return i;
+          if (MANUAL_NW_NAMES.has(i.name)) {
+            const cur = (i.currency || "CAD").toUpperCase();
+            if (cur === "USD") return { ...i, value: typedCad / usdCad };
+            if (cur === "GBP") return { ...i, value: typedCad / gbpCad };
+          }
+          return { ...i, value: typedCad };
+        })
+      };
+    });
     setData({ ...data, snapshots: updated });
   };
 
