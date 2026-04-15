@@ -426,17 +426,62 @@ function calcRSI(prices, period = 14) {
   return 100 - (100 / (1 + rs));
 }
 
-/* 1. QUOTES — batch price data */
+/* Tiingo covers US stocks + ETFs. Indexes (^VIX, VIX), crypto (BTC-USD),
+   and futures (GC=F, SI=F) aren't on the basic tier — fall back to Yahoo. */
+const TIINGO_INELIGIBLE = new Set(["VIX"]);
+function isTiingoEligible(sym) {
+  const s = String(sym || "").toUpperCase();
+  if (!s) return false;
+  if (s.startsWith("^")) return false;
+  if (s.includes("-USD")) return false;
+  if (s.includes("=")) return false;
+  if (TIINGO_INELIGIBLE.has(s)) return false;
+  return true;
+}
+
+/* 1. QUOTES — Tiingo for stocks/ETFs, Yahoo for indexes/crypto/futures */
 app.get("/api/market/quote", async (req, res) => {
   try {
-    const symbols = (req.query.symbols || "").split(",").filter(Boolean);
+    const symbols = (req.query.symbols || "").split(",").map(s => s.trim()).filter(Boolean);
     if (symbols.length === 0) return res.json({ quotes: [] });
 
-    const results = await Promise.allSettled(
-      symbols.map(s => yahooFinance.quote(s))
-    );
+    const tiingoSyms = [...new Set(symbols.filter(isTiingoEligible).map(s => s.toUpperCase()))];
+    const yahooSyms = [...new Set(symbols.filter(s => !isTiingoEligible(s)))];
 
-    const quotes = results
+    const [tiingoOut, yahooResults] = await Promise.all([
+      tiingoSyms.length
+        ? tiingo.getQuotes(tiingoSyms).catch(err => { console.error("tiingo quote error:", err.message); return { quotes: [] }; })
+        : Promise.resolve({ quotes: [] }),
+      yahooSyms.length
+        ? Promise.allSettled(yahooSyms.map(s => yahooFinance.quote(s)))
+        : Promise.resolve([]),
+    ]);
+
+    const fromTiingo = (tiingoOut.quotes || [])
+      .filter(q => q && q.price != null)
+      .map(q => {
+        const price = q.price || 0;
+        const previousClose = q.prevClose ?? price;
+        const hist = tiingo.getCachedHistory(q.symbol);
+        const ath = hist?.ath ?? price;
+        const low52 = hist?.low52 ?? price;
+        return {
+          symbol: q.symbol,
+          shortName: q.symbol,
+          price,
+          previousClose,
+          change: price - previousClose,
+          changePct: q.changePct ?? 0,
+          ath,
+          low52,
+          pctDown: ath > 0 ? ((ath - price) / ath * 100) : 0,
+          pctUp: price > 0 ? ((ath - price) / price * 100) : 0,
+          marketCap: null,
+          currency: "USD",
+        };
+      });
+
+    const fromYahoo = yahooResults
       .filter(r => r.status === "fulfilled" && r.value)
       .map(r => {
         const q = r.value;
@@ -459,18 +504,27 @@ app.get("/api/market/quote", async (req, res) => {
         };
       });
 
-    res.json({ quotes });
+    res.json({ quotes: [...fromTiingo, ...fromYahoo] });
   } catch (err) {
     console.error("market/quote error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-/* 2. HISTORY + TECHNICALS — per symbol */
+/* 2. HISTORY + TECHNICALS — Tiingo for stocks/ETFs, Yahoo for the rest */
 app.get("/api/market/history", async (req, res) => {
   try {
     const symbol = req.query.symbol;
     if (!symbol) return res.status(400).json({ error: "symbol required" });
+
+    if (isTiingoEligible(symbol)) {
+      try {
+        const h = await tiingo.getHistory(symbol);
+        return res.json(h);
+      } catch (err) {
+        console.error(`market/history tiingo error for ${symbol}, falling back to Yahoo:`, err.message);
+      }
+    }
 
     const period1 = new Date();
     period1.setFullYear(period1.getFullYear() - 1);
@@ -483,7 +537,6 @@ app.get("/api/market/history", async (req, res) => {
     const quotes = result.quotes || [];
     const closes = quotes.map(q => q.close).filter(Boolean);
 
-    // Weekly closes for weekly RSI
     const weeklyCloses = [];
     for (let i = 0; i < quotes.length; i += 5) {
       const weekSlice = quotes.slice(i, i + 5).filter(q => q.close);
@@ -498,7 +551,6 @@ app.get("/api/market/history", async (req, res) => {
     const rsi14 = calcRSI(weeklyCloses, 14);
     const rsi14Prev = weeklyCloses.length > 15 ? calcRSI(weeklyCloses.slice(0, -1), 14) : null;
 
-    // Generate signals
     const signals = [];
     if (ema8 !== null && price < ema8) signals.push("Below 8 EMA");
     if (ema8 !== null && price > ema8) signals.push("Above 8 EMA");

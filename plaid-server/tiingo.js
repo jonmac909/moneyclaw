@@ -72,7 +72,7 @@ async function getQuotes(symbols, { force = false } = {}) {
         return byTicker;
       })();
       inflight.set(key, promise);
-      promise.finally(() => inflight.delete(key));
+      promise.finally(() => inflight.delete(key)).catch(() => {});
     }
     const byTicker = await promise;
     for (const sym of toFetch) {
@@ -106,9 +106,35 @@ async function getQuotes(symbols, { force = false } = {}) {
   return { quotes: out };
 }
 
+function calcEMA(prices, period) {
+  if (prices.length < period) return null;
+  const k = 2 / (period + 1);
+  let ema = prices.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  for (let i = period; i < prices.length; i++) ema = prices[i] * k + ema * (1 - k);
+  return ema;
+}
+
+function calcRSI(prices, period) {
+  if (prices.length <= period) return null;
+  let gains = 0, losses = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = prices[i] - prices[i - 1];
+    if (d > 0) gains += d; else losses -= d;
+  }
+  let avgG = gains / period, avgL = losses / period;
+  for (let i = period + 1; i < prices.length; i++) {
+    const d = prices[i] - prices[i - 1];
+    avgG = (avgG * (period - 1) + Math.max(0, d)) / period;
+    avgL = (avgL * (period - 1) + Math.max(0, -d)) / period;
+  }
+  return avgL === 0 ? 100 : 100 - 100 / (1 + avgG / avgL);
+}
+
 /**
- * Get daily history for a single symbol (used for RSI/EMA/ATH).
- * Cache 24h — same rule.
+ * Get daily history for a single symbol. Returns Yahoo-compatible shape:
+ * { symbol, price, ema8, ema21, ema50, ema200, rsi14 (weekly), rsi14Prev, signals,
+ *   ath, low52, pctDown, asOf, bars }
+ * Cache 24h per symbol.
  */
 async function getHistory(symbol, { force = false, days = 400 } = {}) {
   const sym = String(symbol || "").trim().toUpperCase();
@@ -128,75 +154,69 @@ async function getHistory(symbol, { force = false, days = 400 } = {}) {
       return tiingoFetch(url);
     })();
     inflight.set(key, promise);
-    promise.finally(() => inflight.delete(key));
+    promise.finally(() => inflight.delete(key)).catch(() => {});
   }
   const rows = await promise;
   if (!Array.isArray(rows) || !rows.length) {
     if (cached) return { ...cached, symbol: sym, fromCache: true, stale: true };
     throw new Error(`no data for ${sym}`);
   }
-  // RSI(14) + EMA(50) + EMA(200) — same conventions as the old Yahoo code
-  const closes = rows.map(r => r.close || r.adjClose);
-  const ema = (p) => {
-    const k = 2 / (p + 1);
-    let e = closes.slice(0, p).reduce((a, b) => a + b, 0) / p;
-    for (let i = p; i < closes.length; i++) e = closes[i] * k + e * (1 - k);
-    return e;
-  };
-  const rsi = (p) => {
-    if (closes.length <= p) return null;
-    let gains = 0, losses = 0;
-    for (let i = 1; i <= p; i++) {
-      const d = closes[i] - closes[i - 1];
-      if (d > 0) gains += d; else losses -= d;
-    }
-    let avgG = gains / p, avgL = losses / p;
-    for (let i = p + 1; i < closes.length; i++) {
-      const d = closes[i] - closes[i - 1];
-      avgG = (avgG * (p - 1) + Math.max(0, d)) / p;
-      avgL = (avgL * (p - 1) + Math.max(0, -d)) / p;
-    }
-    return avgL === 0 ? 100 : 100 - 100 / (1 + avgG / avgL);
-  };
-  const rsi14 = rsi(14);
-  // previous RSI (for direction)
-  const prev = closes.slice(0, -1);
-  const rsiPrev = (() => {
-    if (prev.length <= 14) return null;
-    const saved = closes;
-    const origCloses = closes;
-    let gains = 0, losses = 0;
-    for (let i = 1; i <= 14; i++) {
-      const d = prev[i] - prev[i - 1];
-      if (d > 0) gains += d; else losses -= d;
-    }
-    let avgG = gains / 14, avgL = losses / 14;
-    for (let i = 15; i < prev.length; i++) {
-      const d = prev[i] - prev[i - 1];
-      avgG = (avgG * 13 + Math.max(0, d)) / 14;
-      avgL = (avgL * 13 + Math.max(0, -d)) / 14;
-    }
-    return avgL === 0 ? 100 : 100 - 100 / (1 + avgG / avgL);
-  })();
-  const ema50 = closes.length >= 50 ? ema(50) : null;
-  const ema200 = closes.length >= 200 ? ema(200) : null;
+  const closes = rows.map(r => r.close || r.adjClose).filter(Boolean);
+  const weeklyCloses = [];
+  for (let i = 0; i < rows.length; i += 5) {
+    const slice = rows.slice(i, i + 5).filter(r => r.close || r.adjClose);
+    if (slice.length) weeklyCloses.push(slice[slice.length - 1].close || slice[slice.length - 1].adjClose);
+  }
+
+  const price = closes[closes.length - 1] || 0;
+  const ema8 = calcEMA(closes, 8);
+  const ema21 = calcEMA(closes, 21);
+  const ema50 = calcEMA(closes, 50);
+  const ema200 = calcEMA(closes, 200);
+  const rsi14 = calcRSI(weeklyCloses, 14);
+  const rsi14Prev = weeklyCloses.length > 15 ? calcRSI(weeklyCloses.slice(0, -1), 14) : null;
   const ath = Math.max(...closes);
-  const price = closes[closes.length - 1];
+  const last252 = closes.slice(-252);
+  const low52 = last252.length ? Math.min(...last252) : price;
+
+  const signals = [];
+  if (ema8 !== null && price < ema8) signals.push("Below 8 EMA");
+  if (ema8 !== null && price > ema8) signals.push("Above 8 EMA");
+  if (ema21 !== null && price < ema21) signals.push("Below 21 EMA");
+  if (ema50 !== null && price < ema50) signals.push("Below 50 EMA");
+  if (ema200 !== null && price < ema200) signals.push("Below 200 EMA");
+  if (ema200 !== null && price > ema200) signals.push("Above 200 EMA");
+  if (ema8 !== null && ema21 !== null && ema8 > ema21) signals.push("8 EMA > 21 EMA");
+  if (ema8 !== null && ema21 !== null && ema8 < ema21) signals.push("8 EMA < 21 EMA");
+  if (rsi14 !== null && rsi14 < 30) signals.push("Weekly RSI Oversold");
+  if (rsi14 !== null && rsi14 > 70) signals.push("Weekly RSI Overbought");
+  if (rsi14 !== null && rsi14 >= 30 && rsi14 <= 70) signals.push("Weekly RSI Neutral");
+
   const rec = {
     symbol: sym,
     price,
+    ema8: ema8 !== null ? +ema8.toFixed(2) : null,
+    ema21: ema21 !== null ? +ema21.toFixed(2) : null,
+    ema50: ema50 !== null ? +ema50.toFixed(2) : null,
+    ema200: ema200 !== null ? +ema200.toFixed(2) : null,
+    rsi14: rsi14 !== null ? +rsi14.toFixed(1) : null,
+    rsi14Prev: rsi14Prev !== null ? +rsi14Prev.toFixed(1) : null,
+    signals,
     ath,
+    low52,
     pctDown: ath > 0 ? ((ath - price) / ath) * 100 : 0,
-    rsi14,
-    rsi14Prev: rsiPrev,
-    ema50,
-    ema200,
     asOf: now,
     bars: rows.length,
   };
   cache.history[sym] = rec;
   saveCache(cache);
   return { ...rec, fromCache: false };
+}
+
+function getCachedHistory(symbol) {
+  const sym = String(symbol || "").trim().toUpperCase();
+  const cache = loadCache();
+  return cache.history[sym] || null;
 }
 
 function cacheSummary() {
@@ -212,4 +232,4 @@ function cacheSummary() {
   return { cooldown_hours: COOLDOWN_MS / 3600000, count: entries.length, entries };
 }
 
-module.exports = { getQuotes, getHistory, cacheSummary };
+module.exports = { getQuotes, getHistory, getCachedHistory, cacheSummary };
