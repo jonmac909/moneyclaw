@@ -1611,6 +1611,41 @@ const MANUAL_NW_NAMES = new Set([
   "PayPal", "Safe Money", "HSBC UK", "Fidelity Clearpath 2045", "House (50%)",
 ]);
 
+/* Merge manual 10 (stored native → CAD via live FX) with live Plaid accounts
+   (native balance → CAD). Returns an items array with item.value in CAD. */
+function buildLiveNwItems(rawSnap, bankAccounts, rates) {
+  if (!rawSnap) return [];
+  const usdCad = rates?.USDCAD || 1.37;
+  const gbpCad = rates?.GBPCAD || 1.73;
+  const manualItems = (rawSnap.items || [])
+    .filter(i => MANUAL_NW_NAMES.has(i.name))
+    .map(i => {
+      const cur = (i.currency || "CAD").toUpperCase();
+      const native = Number(i.value || 0);
+      if (cur === "USD") return { ...i, value: native * usdCad };
+      if (cur === "GBP") return { ...i, value: native * gbpCad, currency: "CAD" };
+      return i;
+    });
+  const derived = Object.values(bankAccounts || {})
+    .filter(ba => ba && ba.enabled !== false)
+    .map(ba => {
+      const rawBal = Number(ba.balance || 0);
+      const cur = (ba.currency || "CAD").toUpperCase();
+      const valueCad = cur === "USD" ? rawBal * usdCad : cur === "GBP" ? rawBal * gbpCad : rawBal;
+      return {
+        id: `plaid_${ba.id}`,
+        bucket: ba.owner || ba.bucket || "Opco",
+        name: ba.nickname || ba.name || "(unnamed)",
+        currency: cur === "USD" ? "USD" : "CAD",
+        value: valueCad,
+        isLiability: ba.type === "credit" || ba.type === "loan",
+        plaidAccountId: ba.id,
+        readOnly: true,
+      };
+    });
+  return [...manualItems, ...derived];
+}
+
 function NetWorthTab({ data, setData, bankAccounts = {}, settings, rates, theme, hide }) {
   const C = themes[theme]; const s = S(theme);
   const [selectedMonth, setSelectedMonth] = useState(null);
@@ -1666,41 +1701,11 @@ function NetWorthTab({ data, setData, bankAccounts = {}, settings, rates, theme,
   const rawActiveSnap = snaps.find(sn => sn.month === activeMonth);
   const isCurrentMonth = activeMonth === currentMonthKey;
 
-  /* Build a "live" snapshot for the current month: manual 10 items (stored in
-     native currency, converted to CAD here) + derived items from enabled
-     Plaid-connected bankAccounts (converted native → CAD via live rates).
-     Historical months render their stored snap.items unchanged. */
+  /* Build a "live" snapshot for the current month. Historical months render
+     their stored snap.items unchanged. */
   const activeSnap = useMemo(() => {
     if (!rawActiveSnap || !isCurrentMonth) return rawActiveSnap;
-    const usdCad = rates?.USDCAD || 1.37;
-    const gbpCad = rates?.GBPCAD || 1.73;
-    const manualItems = (rawActiveSnap.items || [])
-      .filter(i => MANUAL_NW_NAMES.has(i.name))
-      .map(i => {
-        const cur = (i.currency || "CAD").toUpperCase();
-        const native = Number(i.value || 0);
-        if (cur === "USD") return { ...i, value: native * usdCad };
-        if (cur === "GBP") return { ...i, value: native * gbpCad, currency: "CAD" };
-        return i;
-      });
-    const derived = Object.values(bankAccounts || {})
-      .filter(ba => ba && ba.enabled !== false)
-      .map(ba => {
-        const rawBal = Number(ba.balance || 0);
-        const cur = (ba.currency || "CAD").toUpperCase();
-        const valueCad = cur === "USD" ? rawBal * usdCad : cur === "GBP" ? rawBal * gbpCad : rawBal;
-        return {
-          id: `plaid_${ba.id}`,
-          bucket: ba.owner || ba.bucket || "Opco",
-          name: ba.nickname || ba.name || "(unnamed)",
-          currency: cur === "USD" ? "USD" : "CAD",
-          value: valueCad,
-          isLiability: ba.type === "credit" || ba.type === "loan",
-          plaidAccountId: ba.id,
-          readOnly: true,
-        };
-      });
-    return { ...rawActiveSnap, items: [...manualItems, ...derived] };
+    return { ...rawActiveSnap, items: buildLiveNwItems(rawActiveSnap, bankAccounts, rates) };
   }, [rawActiveSnap, isCurrentMonth, bankAccounts, rates]);
 
   const isSaved = activeSnap?.saved !== false;
@@ -3573,10 +3578,12 @@ function PortfolioTab({ data, setData, nwData, setNwData, bankAccounts, plaidSki
         <div className="mc-stat-row" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           {(() => {
             // Investible = Total Net Worth − House equity (house value − mortgage)
-            const allItems = nwData?.snapshots?.[0]?.items || [];
+            // Use live-derived items (Plaid balances + manual 10, all CAD) so NW matches NetWorth tab.
+            const rawSnap = nwData?.snapshots?.[0];
+            const allItems = buildLiveNwItems(rawSnap, bankAccounts, rates);
             let totalNW = 0, houseValue = 0, mortgageValue = 0;
             allItems.forEach(it => {
-              const v = toBase(Number(it.value || 0), it.currency || "CAD", rates);
+              const v = Number(it.value || 0); // already CAD from buildLiveNwItems
               const isLiab = it.isLiability || inferNwItemType(it) === "Liability";
               const isHouse = inferNwItemType(it) === "Real Estate";
               const isMortgage = /mortgage/i.test(it.name || "");
