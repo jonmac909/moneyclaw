@@ -24,6 +24,8 @@ const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: "50mb" }));
 
+app.get("/", (_req, res) => res.redirect("http://localhost:5173/"));
+
 const PORT = process.env.PORT || 8484;
 
 /* ── Plaid client setup ── */
