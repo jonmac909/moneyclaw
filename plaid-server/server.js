@@ -11,11 +11,11 @@
  *   4. MoneyClaw will call http://localhost:8484/api/plaid/*
  */
 
-require("dotenv").config();
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, ".env") });
 const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
-const path = require("path");
 const { Configuration, PlaidApi, PlaidEnvironments, Products, CountryCode } = require("plaid");
 const billing = require("./plaid-billing");
 const tiingo = require("./tiingo");
