@@ -1606,7 +1606,12 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
 /* ═══════════════════════════════════════════════════════════
    TAB 1 — NET WORTH
    ═══════════════════════════════════════════════════════════ */
-function NetWorthTab({ data, setData, settings, rates, theme, hide }) {
+const MANUAL_NW_NAMES = new Set([
+  "GLE350 Car", "CAD Crypto", "USD Silver", "USD Gold", "Numismatic Coins",
+  "PayPal", "Safe Money", "HSBC UK", "Fidelity Clearpath 2045", "House (50%)",
+]);
+
+function NetWorthTab({ data, setData, bankAccounts = {}, settings, rates, theme, hide }) {
   const C = themes[theme]; const s = S(theme);
   const [selectedMonth, setSelectedMonth] = useState(null);
   const [compareMonth, setCompareMonth] = useState(null);
@@ -1658,8 +1663,37 @@ function NetWorthTab({ data, setData, settings, rates, theme, hide }) {
 
   const sortedMonths = [...new Set(snaps.map(sn => sn.month))].sort().reverse();
   const activeMonth = selectedMonth || currentMonthKey;
-  const activeSnap = snaps.find(sn => sn.month === activeMonth);
+  const rawActiveSnap = snaps.find(sn => sn.month === activeMonth);
   const isCurrentMonth = activeMonth === currentMonthKey;
+
+  /* Build a "live" snapshot for the current month: manual 10 items (from the
+     stored snap) + derived items from enabled Plaid-connected bankAccounts.
+     Historical months render their stored snap.items unchanged. */
+  const activeSnap = useMemo(() => {
+    if (!rawActiveSnap || !isCurrentMonth) return rawActiveSnap;
+    const manualItems = (rawActiveSnap.items || []).filter(i => MANUAL_NW_NAMES.has(i.name));
+    const usdCad = rates?.USDCAD || 1.37;
+    const gbpCad = rates?.GBPCAD || 1.73;
+    const derived = Object.values(bankAccounts || {})
+      .filter(ba => ba && ba.enabled !== false)
+      .map(ba => {
+        const rawBal = Number(ba.balance || 0);
+        const cur = (ba.currency || "CAD").toUpperCase();
+        const valueCad = cur === "USD" ? rawBal * usdCad : cur === "GBP" ? rawBal * gbpCad : rawBal;
+        return {
+          id: `plaid_${ba.id}`,
+          bucket: ba.owner || ba.bucket || "Opco",
+          name: ba.nickname || ba.name || "(unnamed)",
+          currency: cur === "USD" ? "USD" : "CAD",
+          value: valueCad,
+          isLiability: ba.type === "credit" || ba.type === "loan",
+          plaidAccountId: ba.id,
+          readOnly: true,
+        };
+      });
+    return { ...rawActiveSnap, items: [...manualItems, ...derived] };
+  }, [rawActiveSnap, isCurrentMonth, bankAccounts, rates]);
+
   const isSaved = activeSnap?.saved !== false;
   const prevMonth = compareMonth || sortedMonths.find(m => m < activeMonth) || sortedMonths[0] || "";
   const prevSnap = snaps.find(sn => sn.month === prevMonth);
@@ -1708,11 +1742,11 @@ function NetWorthTab({ data, setData, settings, rates, theme, hide }) {
   /* trend chart data */
   const trendData = useMemo(() => {
     return sortedMonths.slice().reverse().map(m => {
-      const snap = snaps.find(sn => sn.month === m);
+      const snap = m === currentMonthKey ? activeSnap : snaps.find(sn => sn.month === m);
       const t = computeBucketTotals(snap);
       return { month: monthLabel(m), netWorth: t.total, netWorthHigh: t.totalHigh, gross: t.grossTotal, corp: t.corpTotal, personal: t.personalTotal };
     });
-  }, [snaps, rates, settings]);
+  }, [snaps, rates, settings, activeSnap, currentMonthKey]);
 
   const addItem = () => {
     if (!newItem.name || !newItem.value) return;
@@ -1979,9 +2013,9 @@ function NetWorthTab({ data, setData, settings, rates, theme, hide }) {
             onClick={() => linked && setExpandedNwItem(isExpanded ? null : linkKey)}>
             {isLiability ? "− " : ""}{item.name} {linked ? <span style={{ fontSize: 9, color: C.muted }}>▸</span> : ""}
           </td>
-          <td style={{ padding: "3px 0", textAlign: "right", cursor: hide ? "default" : "text" }}
-            onClick={() => { if (!hide) { setEditingItemId(item.id); setEditingUsdId(null); } }}>
-            {isEditing && !hide ? (
+          <td style={{ padding: "3px 0", textAlign: "right", cursor: (hide || item.readOnly) ? "default" : "text" }}
+            onClick={() => { if (!hide && !item.readOnly) { setEditingItemId(item.id); setEditingUsdId(null); } }}>
+            {isEditing && !hide && !item.readOnly ? (
               <input type="number" autoFocus style={{
                 ...s.mono, background: C.card2, border: `1px solid ${isLiability ? C.red : C.accent}`, borderRadius: 4,
                 padding: "2px 4px", color, width: "100%", boxSizing: "border-box", textAlign: "right", outline: "none", fontSize: 13,
@@ -1998,10 +2032,10 @@ function NetWorthTab({ data, setData, settings, rates, theme, hide }) {
             )}
           </td>
           {hasUSD && (
-            <td style={{ padding: "3px 0", textAlign: "right", cursor: item.currency === "USD" && !hide ? "text" : "default" }}
-              onClick={() => { if (item.currency === "USD" && !hide) { setEditingUsdId(item.id); setEditingItemId(null); } }}>
+            <td style={{ padding: "3px 0", textAlign: "right", cursor: item.currency === "USD" && !hide && !item.readOnly ? "text" : "default" }}
+              onClick={() => { if (item.currency === "USD" && !hide && !item.readOnly) { setEditingUsdId(item.id); setEditingItemId(null); } }}>
               {item.currency === "USD" ? (
-                isEditingUsd && !hide ? (
+                isEditingUsd && !hide && !item.readOnly ? (
                   <input type="number" autoFocus style={{
                     ...s.mono, background: C.card2, border: `1px solid ${C.accent}`, borderRadius: 4,
                     padding: "2px 4px", color: C.muted, width: "100%", boxSizing: "border-box", textAlign: "right", outline: "none", fontSize: 11,
@@ -8441,7 +8475,7 @@ export default function MoneyClaw() {
         ) : (
           <>
             {tab === "overview" && <OverviewTab portData={portData} setPortData={setPortData} watchlistData={watchlistData} nwData={nwData} rates={rates} todos={todos} setTodos={setTodos} rules={rules} settings={settings} theme={theme} hide={numbersHidden} />}
-            {tab === "networth" && <NetWorthTab data={nwData} setData={setNwData} settings={settings} rates={rates} theme={theme} hide={numbersHidden} />}
+            {tab === "networth" && <NetWorthTab data={nwData} setData={setNwData} bankAccounts={cfData?.bankAccounts || {}} settings={settings} rates={rates} theme={theme} hide={numbersHidden} />}
             {tab === "portfolio" && <PortfolioTab data={portData} setData={setPortData} nwData={nwData} setNwData={setNwData} bankAccounts={cfData?.bankAccounts || {}} plaidSkip={cfData?.plaidAccountSkip || []} settings={settings} setSettings={setSettings} rates={rates} theme={theme} hide={numbersHidden} />}
             {tab === "cashflow" && <CashFlowTab data={cfData} setData={setCfData} nwData={nwData} settings={settings} rates={rates} theme={theme} hide={numbersHidden} />}
             {tab === "watchlist" && <WatchlistTab data={watchlistData} setData={setWatchlistData} portData={portData} settings={settings} rates={rates} theme={theme} />}
