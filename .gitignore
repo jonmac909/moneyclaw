@@ -7,6 +7,8 @@ moneyclaw-data.json
 moneyclaw-data.json.bak-*
 screenlog.*
 data/chat.json
+coach-bridge.log
+plaid-server.log
 /plaid-server/connections.json
 # Plaid billing / Tiingo runtime state (regenerated on the fly)
 /plaid-server/plaid-billing-state.json
