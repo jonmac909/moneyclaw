@@ -871,7 +871,10 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
       }
 
       /* ═══ SELL / CAUTION SIGNALS (positions we hold) ═══ */
-      if (h && holdingValue > 0) {
+      const holdingType = (data.holdings || []).find(hh => hh.ticker === sym)?.type;
+      const isETF = holdingType === "ETF";
+      const isIBIT = sym === "IBIT";
+      if (h && holdingValue > 0 && (!isETF || isIBIT)) {
         let sellPct = 0;
         let sellReason = [];
 
@@ -915,7 +918,7 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
           type = "caution";
           msg = `${name} at sell block, up only ${gainPct.toFixed(1)}%. Consider selling to break even — re-enter at next order block.`;
           tags.push("Break Even");
-        } else if (sellPct >= 25 && gainPct > 0) {
+        } else if (sellPct >= 25 && gainPct > 0 && (!isIBIT || sellPct >= 75)) {
           type = "sell";
           const reasons = sellReason.join(" + ");
           msg = `${name} — ${reasons}. ${rsiStr}. TRIM ${sellPct}% ($${(sellValue / 1000).toFixed(1)}k).`;
