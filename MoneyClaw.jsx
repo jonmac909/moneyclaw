@@ -813,8 +813,8 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
       let type, msg;
       let score = 0;
 
-      /* ═══ BUY SIGNALS (mag 6 only) ═══ */
-      if (isMag6 && q.pctDown >= 3 && holdingValue < 30000) {
+      /* ═══ BUY SIGNALS (mag 6 only) — never buy overbought ═══ */
+      if (isMag6 && q.pctDown >= 3 && holdingValue < 30000 && !overbought) {
         /* Drop from recent high */
         if (q.pctDown >= 30) score += 8;
         else if (q.pctDown >= 20) score += 6;
