@@ -1464,40 +1464,28 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
           <button style={s.btnSm} onClick={() => addTodo(newTodo)}>Add</button>
         </div>
 
-        {/* Auto-inject coach signals directly into to-do list */}
+        {/* Auto-sync coach signals — replaces stale coach todos with current signals */}
         {(() => {
-          const existingTexts = new Set(todos.map(t => t.text));
-          const autoTodos = [];
+          const coachMsgs = [];
           const vixP = vix.price || 0;
+          if (vixP >= 25) coachMsgs.push("DCA extra into ETFs — VIX is elevated (fear = opportunity)");
+          if (vixP >= 30) coachMsgs.push("Deploy extra cash tranche — market panic, historically great entry");
+          actionFeed.filter(a => a.type === "buy" && a.score >= 5).slice(0, 3).forEach(a => coachMsgs.push(`${a.sym}: ${a.msg}`));
+          actionFeed.filter(a => a.type === "sell").slice(0, 3).forEach(a => coachMsgs.push(`${a.sym}: ${a.msg}`));
+          actionFeed.filter(a => a.type === "caution" || a.type === "danger").slice(0, 3).forEach(a => coachMsgs.push(`${a.sym}: ${a.msg}`));
 
-          if (vixP >= 25 && !existingTexts.has("DCA extra into ETFs — VIX is elevated (fear = opportunity)"))
-            autoTodos.push("DCA extra into ETFs — VIX is elevated (fear = opportunity)");
-          if (vixP >= 30 && !existingTexts.has("Deploy extra cash tranche — market panic, historically great entry"))
-            autoTodos.push("Deploy extra cash tranche — market panic, historically great entry");
-
-          actionFeed.filter(a => a.type === "buy" && a.score >= 5).slice(0, 3).forEach(a => {
-            if (!existingTexts.has(a.msg)) autoTodos.push(a.msg);
-          });
-          actionFeed.filter(a => a.type === "sell").slice(0, 3).forEach(a => {
-            if (!existingTexts.has(a.msg)) autoTodos.push(a.msg);
-          });
-          actionFeed.filter(a => a.type === "caution").slice(0, 3).forEach(a => {
-            if (!existingTexts.has(a.msg)) autoTodos.push(a.msg);
-          });
-
-          if (autoTodos.length > 0) {
-            const newOnes = autoTodos.filter(t => !existingTexts.has(t));
-            if (newOnes.length > 0) {
-              setTimeout(() => {
-                setTodos(prev => {
-                  const existing = new Set(prev.map(t => t.text));
-                  const toAdd = newOnes.filter(t => !existing.has(t));
-                  if (toAdd.length === 0) return prev;
-                  return [...prev, ...toAdd.map(t => ({ id: uid(), text: t, done: false, created: new Date().toISOString(), source: "coach" }))];
-                });
-              }, 0);
-            }
-          }
+          setTimeout(() => {
+            setTodos(prev => {
+              const manual = prev.filter(t => t.source !== "coach");
+              const currentSet = new Set(coachMsgs);
+              const existingCoach = prev.filter(t => t.source === "coach" && currentSet.has(t.text));
+              const existingTexts = new Set(existingCoach.map(t => t.text));
+              const newCoach = coachMsgs.filter(t => !existingTexts.has(t)).map(t => ({ id: uid(), text: t, done: false, created: new Date().toISOString(), source: "coach" }));
+              const updated = [...manual, ...existingCoach, ...newCoach];
+              if (updated.length === prev.length && updated.every((t, i) => t.id === prev[i]?.id)) return prev;
+              return updated;
+            });
+          }, 0);
           return null;
         })()}
 
