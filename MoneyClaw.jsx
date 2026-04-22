@@ -735,7 +735,7 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
       setLoading(true);
       Promise.all([
         fetch(`${PLAID_SERVER}/api/market/quote?symbols=${[...syms, "^VIX", "DIA", "QQQ", "VOO", "BTC-USD", "GC=F", "SI=F"].join(",")}`).then(r => r.json()),
-        fetch(`${PLAID_SERVER}/api/market/news?symbols=SPY,QQQ,DIA,VIX,^TNX`).then(r => r.json()),
+        fetch(`${PLAID_SERVER}/api/market/news?symbols=SPY,QQQ,DIA,VIX,^TNX,${MAG7.join(",")}`).then(r => r.json()),
         fetch(`${PLAID_SERVER}/api/calendar`).then(r => r.json()).catch(() => ({ events: [] })),
         ...syms.map(sym => fetch(`${PLAID_SERVER}/api/market/history?symbol=${sym}`).then(r => r.json()).catch(() => null))
       ]).then(([qData, nData, calData, ...techResults]) => {
@@ -1571,6 +1571,31 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
           })}
         </div>
       )}
+
+      {/* ── Stock News ── */}
+      {(() => {
+        const stockNews = news.filter(n => heldSymbols.includes(n.relatedTicker) || MAG7.includes(n.relatedTicker));
+        if (stockNews.length === 0) return null;
+        const seen = new Set();
+        const unique = stockNews.filter(n => { if (seen.has(n.title)) return false; seen.add(n.title); return true; }).slice(0, 8);
+        return (
+          <div style={{ ...s.card, marginBottom: 20 }}>
+            <h3 style={{ ...s.h3, display: "flex", alignItems: "center", gap: 8, cursor: "pointer", userSelect: "none" }}
+              onClick={() => setCollapsed(p => ({ ...p, stockNews: !p.stockNews }))}>
+              <span style={{ fontSize: 9, transition: "transform 0.2s", transform: collapsed.stockNews ? "rotate(-90deg)" : "rotate(0deg)" }}>▼</span>
+              Stock News
+              <span style={{ fontSize: 11, color: C.muted, fontWeight: 400 }}>{unique.length} headlines</span>
+            </h3>
+            {!collapsed.stockNews && unique.map((n, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderBottom: i < unique.length - 1 ? `1px solid ${C.border}10` : "none", fontSize: 13 }}>
+                <span style={{ fontWeight: 700, color: C.accent, minWidth: 50 }}>{displaySym(n.relatedTicker)}</span>
+                <a href={n.url} target="_blank" rel="noopener noreferrer" style={{ color: C.text, textDecoration: "none", flex: 1 }}>{n.title}</a>
+                <span style={{ fontSize: 10, color: C.muted, whiteSpace: "nowrap" }}>{n.publisher}</span>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* ── Holdings Report ── */}
 

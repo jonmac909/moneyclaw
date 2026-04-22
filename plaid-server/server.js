@@ -649,9 +649,9 @@ app.get("/api/market/news", async (req, res) => {
     if (symbols.length === 0) return res.json({ news: [] });
 
     const allNews = [];
-    for (const sym of symbols.slice(0, 10)) {
+    for (const sym of symbols.slice(0, 15)) {
       try {
-        const result = await yahooFinance.search(sym, { newsCount: 3, quotesCount: 0 });
+        const result = await yahooFinance.search(sym, { newsCount: 5, quotesCount: 0 });
         (result.news || []).forEach(n => {
           allNews.push({
             title: n.title,
