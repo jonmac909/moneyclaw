@@ -1538,9 +1538,9 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
             const pctClr = pctColor(a.sym, Math.abs(pctVal));
             return (
               <div key={a.sym + a.type} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: i < actionFeed.length - 1 ? `1px solid ${C.border}15` : "none", fontSize: 13 }}>
-                <span style={{ fontWeight: 700, color: a.type === "sell" ? C.red : a.type === "caution" ? C.orange : C.accent, minWidth: 50 }}>{displaySym(a.sym)}</span>
+                <span style={{ fontWeight: 700, color: a.type === "sell" ? C.red : a.type === "caution" || a.type === "danger" ? C.orange : C.accent, minWidth: 50 }}>{displaySym(a.sym)}</span>
                 {a.type === "sell" && <span style={{ background: C.red + "22", color: C.red, padding: "0 5px", borderRadius: 5, fontSize: 9, fontWeight: 700 }}>SELL</span>}
-                {a.type === "caution" && <span style={{ background: C.orange + "22", color: C.orange, padding: "0 5px", borderRadius: 5, fontSize: 9, fontWeight: 700 }}>WAIT</span>}
+                {(a.type === "caution" || a.type === "danger") && <span style={{ background: C.orange + "22", color: C.orange, padding: "0 5px", borderRadius: 5, fontSize: 9, fontWeight: 700 }}>WAIT</span>}
                 {a.type === "buy" && a.score >= 5 && <span style={{ background: C.green + "22", color: C.green, padding: "0 5px", borderRadius: 5, fontSize: 9, fontWeight: 700 }}>{a.score}pts</span>}
                 {pctTag && <span style={{ color: pctClr, fontWeight: 600, fontSize: 11, minWidth: 45 }}>{pctTag}</span>}
                 {otherTags.map(tag => (
@@ -7307,14 +7307,14 @@ function WatchlistTab({ data, setData, portData, settings, rates, theme }) {
                   dangerouslySetInnerHTML={{ __html: line.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>') }} />
               ))}
             </div>
-            {actionFeed.filter(a => a.type === "buy" || a.type === "sell" || a.type === "caution").length > 0 && (
+            {actionFeed.filter(a => a.type === "buy" || a.type === "sell" || a.type === "caution" || a.type === "danger").length > 0 && (
               <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}20` }}>
                 <div style={{ fontSize: 11, color: C.accent, fontWeight: 700, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Coach Signals</div>
-                {actionFeed.filter(a => a.type === "buy" || a.type === "sell" || a.type === "caution").slice(0, 5).map((a, i) => (
+                {actionFeed.filter(a => a.type === "buy" || a.type === "sell" || a.type === "caution" || a.type === "danger").slice(0, 5).map((a, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 0", fontSize: 12 }}>
-                    <span style={{ fontWeight: 700, color: a.type === "sell" ? C.red : a.type === "caution" ? C.orange : C.green, minWidth: 44 }}>{displaySym(a.sym)}</span>
+                    <span style={{ fontWeight: 700, color: a.type === "sell" ? C.red : a.type === "caution" || a.type === "danger" ? C.orange : C.green, minWidth: 44 }}>{displaySym(a.sym)}</span>
                     {a.type === "sell" && <span style={{ background: C.red + "22", color: C.red, padding: "0 5px", borderRadius: 4, fontSize: 9, fontWeight: 700 }}>SELL</span>}
-                    {a.type === "caution" && <span style={{ background: C.orange + "22", color: C.orange, padding: "0 5px", borderRadius: 4, fontSize: 9, fontWeight: 700 }}>WAIT</span>}
+                    {(a.type === "caution" || a.type === "danger") && <span style={{ background: C.orange + "22", color: C.orange, padding: "0 5px", borderRadius: 4, fontSize: 9, fontWeight: 700 }}>WAIT</span>}
                     {a.type === "buy" && <span style={{ background: C.green + "22", color: C.green, padding: "0 5px", borderRadius: 4, fontSize: 9, fontWeight: 700 }}>{a.score}pts</span>}
                     <span style={{ color: C.text, flex: 1 }}>{a.msg}</span>
                   </div>
