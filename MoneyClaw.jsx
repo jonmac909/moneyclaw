@@ -921,18 +921,14 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
         }
       }
 
-      /* ═══ FALLBACK for non-mag6 or no signal ═══ */
+      /* ═══ FALLBACK — only show actionable signals ═══ */
       if (!type) {
         if (oversold && rsiFalling) {
-          type = "danger"; msg = `${name} — ${rsiStr}, still falling. ${pctStr}% off ATH. Wait for reversal.`; tags.push("Falling");
+          type = "danger"; msg = `${name} — ${rsiStr}, still falling. ${pctStr}% off ATH. WAIT for reversal.`; tags.push("Falling");
         } else if (oversold && rsiRising) {
-          type = "buy"; msg = `${name} — ${rsiStr} reversing from oversold! ${pctStr}% off ATH. ${todayStr}.`; tags.push("RSI Reversal"); score += 15;
-        } else if (below200) {
-          type = "danger"; msg = `${name} below 200 EMA. ${rsiStr}. ${rsiRising ? "Momentum recovering." : "Watch for support."}`; tags.push("↓200");
-        } else if (overbought && !h) {
-          type = "info"; msg = `${name} — ${rsiStr} overbought. Near ATH. Wait for pullback.`; tags.push("Overbought");
-        } else if (q.pctDown >= 5) {
-          type = "info"; msg = `${name} — ${pctStr}% from ATH. ${rsiStr}. ${todayStr}.`; score += q.pctDown;
+          type = "buy"; msg = `${name} — ${rsiStr} reversing from oversold! ${pctStr}% off ATH. ${todayStr}. Strong entry.`; tags.push("RSI Reversal"); score += 15;
+        } else if (below200 && rsiFalling) {
+          type = "danger"; msg = `${name} below 200 EMA, ${rsiStr}. Watch for support.`; tags.push("↓200");
         }
       }
 
