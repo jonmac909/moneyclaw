@@ -97,6 +97,7 @@ const Icon = ({ name, size = 14, color = "currentColor", style = {} }) => {
     bitcoin: <><path d="M5.5 3V13" {...p}/><path d="M9.5 3V13" {...p}/><path d="M4 5H10.5C11.88 5 13 5.67 13 7C13 8.33 11.88 9 10.5 9H4" {...p}/><path d="M4 9H11C12.38 9 13.5 9.67 13.5 11C13.5 12.33 12.38 13 11 13H4" {...p}/></>,
     expand: <><path d="M4 10L4 12.5L6.5 12.5" {...p}/><path d="M12 6L12 3.5L9.5 3.5" {...p}/><path d="M4 12.5L7 9.5" {...p}/><path d="M12 3.5L9 6.5" {...p}/></>,
     collapse: <><path d="M6.5 9.5L4 12" {...p}/><path d="M9.5 6.5L12 4" {...p}/><path d="M5 9.5H7V11.5" {...p}/><path d="M11 6.5H9V4.5" {...p}/></>,
+    book: <><path d="M3 2.5H11C12.1 2.5 13 3.4 13 4.5V13.5H5C3.9 13.5 3 12.6 3 11.5V2.5Z" {...p}/><path d="M3 11.5C3 10.4 3.9 9.5 5 9.5H13" {...p}/></>,
   };
   return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ display: "inline-block", verticalAlign: "middle", flexShrink: 0, ...style }}>{icons[name] || null}</svg>;
 };
@@ -8084,6 +8085,22 @@ function FinanceChatTab({ nwData, portData, cfData, settings, rates, theme, rule
 }
 
 /* ═══════════════════════════════════════════════════════════
+   BOOKKEEPING TAB (placeholder)
+   ═══════════════════════════════════════════════════════════ */
+function BookkeepingTab({ theme }) {
+  const C = theme === "dark" ? DARK : LIGHT;
+  return (
+    <div style={{ padding: 32, textAlign: "center" }}>
+      <Icon name="book" size={48} color={C.muted} style={{ marginBottom: 16 }} />
+      <h2 style={{ fontSize: 22, fontWeight: 600, color: C.text, marginBottom: 8 }}>Bookkeeping</h2>
+      <p style={{ fontSize: 14, color: C.muted, maxWidth: 400, margin: "0 auto" }}>
+        QuickBooks integration coming soon. Track invoices, expenses, and reconcile accounts in one place.
+      </p>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
    MAIN APP
    ═══════════════════════════════════════════════════════════ */
 const TABS = [
@@ -8092,6 +8109,7 @@ const TABS = [
   { key: "networth", label: "Net Worth", iconName: "chart" },
   { key: "portfolio", label: "Portfolio", iconName: "briefcase" },
   { key: "cashflow", label: "Income & Expenses", iconName: "wallet" },
+  { key: "bookkeeping", label: "Bookkeeping", iconName: "book" },
   { key: "settings", label: "Settings", iconName: "gear" },
 ];
 
@@ -8445,6 +8463,7 @@ export default function MoneyClaw() {
             {tab === "portfolio" && <PortfolioTab data={portData} setData={setPortData} nwData={nwData} setNwData={setNwData} bankAccounts={cfData?.bankAccounts || {}} plaidSkip={cfData?.plaidAccountSkip || []} settings={settings} setSettings={setSettings} rates={rates} theme={theme} hide={numbersHidden} />}
             {tab === "cashflow" && <CashFlowTab data={cfData} setData={setCfData} nwData={nwData} settings={settings} rates={rates} theme={theme} hide={numbersHidden} />}
             {tab === "watchlist" && <WatchlistTab data={watchlistData} setData={setWatchlistData} portData={portData} settings={settings} rates={rates} theme={theme} />}
+            {tab === "bookkeeping" && <BookkeepingTab theme={theme} />}
             {tab === "settings" && <SettingsTab settings={settings} setSettings={setSettings} rates={rates} setRates={setRates} theme={theme} tabPasswords={tabPasswords} saveTabPasswords={saveTabPasswords} handleRemovePassword={handleRemovePassword} unlockedTabs={unlockedTabs} />}
           </>
         )}
