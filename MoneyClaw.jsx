@@ -860,10 +860,10 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
 
         if (score >= 5 && suggestAmt > 0) {
           type = "buy";
-          msg = `BUY $${(suggestAmt / 1000).toFixed(0)}k — ${pctStr}% off ATH${nearDemand ? ", at order block" : ""}.${maxTranches < 4 ? " Trend caution." : ""}`;
+          msg = `BUY $${(suggestAmt / 1000).toFixed(0)}k — ${pctStr}% off ATH${nearDemand ? ", order block" : ""}${maxTranches < 4 ? ", trend caution" : ""}`;
         } else if (q.pctDown >= 5) {
           type = "info";
-          msg = `${pctStr}% off ATH — watching for more confluence.`;
+          msg = `WATCH — ${pctStr}% off ATH, waiting for confluence`;
         }
       }
 
@@ -886,22 +886,22 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
         }
 
         if (nearSupply && gainPct > 0 && gainPct < 10 && sellPct === 0) {
-          type = "caution"; msg = `At sell block, small gain. Sell to break even, re-enter lower.`;
+          type = "caution"; msg = `BREAK EVEN — at sell block, up ${gainPct.toFixed(1)}%, re-enter lower`;
         } else if (sellPct >= 25 && gainPct > 0 && (!isIBIT || sellPct >= 75)) {
-          type = "sell"; msg = `TRIM ${sellPct}% ($${(sellValue / 1000).toFixed(1)}k) — RSI ${Math.round(rsi)}${divergence === "bearish" ? ", bearish div" : ""}.`;
+          type = "sell"; msg = `TRIM ${sellPct}% ($${(sellValue / 1000).toFixed(1)}k) — RSI ${Math.round(rsi)}${divergence === "bearish" ? ", bearish div" : ""}`;
         } else if (overbought && gainPct <= 0) {
-          type = "caution"; msg = `DO NOT ADD — RSI ${Math.round(rsi)}, underwater (avg $${h.avgCost.toFixed(0)}). Wait for pullback.`;
+          type = "caution"; msg = `DO NOT ADD — RSI ${Math.round(rsi)}, underwater at $${h.avgCost.toFixed(0)}`;
         }
       }
 
       if (!h && isMag6 && overbought && !type) {
-        type = "caution"; msg = `DO NOT BUY — RSI ${Math.round(rsi)}, wait for pullback.`;
+        type = "caution"; msg = `DO NOT BUY — RSI ${Math.round(rsi)}, wait for pullback`;
       }
 
       if (!type) {
-        if (oversold && rsiFalling) { type = "danger"; msg = `WAIT — RSI ${Math.round(rsi)}, still falling.`; }
-        else if (oversold && rsiRising) { type = "buy"; msg = `RSI reversing from oversold. Strong entry.`; score += 15; }
-        else if (below200 && rsiFalling) { type = "danger"; msg = `Below 200 EMA, RSI ${Math.round(rsi)} falling. Watch.`; }
+        if (oversold && rsiFalling) { type = "danger"; msg = `WAIT — RSI ${Math.round(rsi)}, still falling`; }
+        else if (oversold && rsiRising) { type = "buy"; msg = `BUY — RSI reversing from oversold`; score += 15; }
+        else if (below200 && rsiFalling) { type = "danger"; msg = `WAIT — below 200 EMA, RSI ${Math.round(rsi)} falling`; }
       }
 
       if (type) {
