@@ -986,7 +986,7 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
     if (_score >= 4) { vixSentiment = "Risk-on"; vixColor = C.green;
       vixTake = `Strong tape. VIX ${vixLevel.toFixed(0)}, momentum up. Deploy on schedule.${_breadthNote ? " " + _breadthNote : ""}`;
     } else if (_score >= 2) { vixSentiment = "Bullish bias"; vixColor = "#8ab864";
-      vixTake = `Constructive. VIX ${vixLevel.toFixed(0)}, ${_qPct < 3 ? "near highs" : `${_qPct.toFixed(1)}% pullback`}. Normal DCA.${_breadthNote ? " " + _breadthNote : ""}`;
+      vixTake = `Leaning bullish. VIX ${vixLevel.toFixed(0)}, ${_qPct < 3 ? "near highs" : `${_qPct.toFixed(1)}% pullback`}. Normal DCA.${_breadthNote ? " " + _breadthNote : ""}`;
     } else if (_score >= 0) { vixSentiment = "Mixed"; vixColor = "#A3B4C8";
       vixTake = `No clear edge. VIX ${vixLevel.toFixed(0)}, RSI ${_rsi?.toFixed(0) || "?"}. Stick to base DCA, don't front-load.${_breadthNote ? " " + _breadthNote : ""}`;
     } else if (_score >= -2) { vixSentiment = "Cautious"; vixColor = "#f59e0b";
