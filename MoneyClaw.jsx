@@ -813,8 +813,12 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
       let type, msg;
       let score = 0;
 
-      /* ═══ BUY SIGNALS (mag 6 only) — never buy overbought ═══ */
-      if (isMag6 && q.pctDown >= 3 && holdingValue < 30000 && !overbought) {
+      /* ═══ BUY SIGNALS (mag 6 only) ═══ */
+      const BULLISH_KW = /launch|unveil|announc|partner|deal|beat|exceed|record|upgrade|buy rating|outperform|ai|growth|revenue up|profit|breakthrough|new product/i;
+      const stockNews = news.filter(n => n.relatedTicker === sym || (n.title && n.title.includes(name?.split(" ")[0])));
+      const hasBullishNews = stockNews.some(n => BULLISH_KW.test(n.title));
+      const catalystOverride = overbought && q.pctDown >= 10 && rsiRising && hasBullishNews;
+      if (isMag6 && q.pctDown >= 3 && holdingValue < 30000 && (!overbought || catalystOverride)) {
         /* Drop from recent high */
         if (q.pctDown >= 30) score += 8;
         else if (q.pctDown >= 20) score += 6;
@@ -858,9 +862,16 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
         suggestAmt = Math.min(suggestAmt * amtMultiplier, room);
         suggestAmt = Math.round(suggestAmt / 1000) * 1000;
 
+        if (catalystOverride) score += 3;
+
         if (score >= 5 && suggestAmt > 0) {
           type = "buy";
-          msg = `BUY $${(suggestAmt / 1000).toFixed(0)}k — ${pctStr}% off ATH${nearDemand ? ", order block" : ""}${maxTranches < 4 ? ", trend caution" : ""}`;
+          const bullishHeadline = stockNews.find(n => BULLISH_KW.test(n.title))?.title;
+          const newsSnip = bullishHeadline ? bullishHeadline.slice(0, 60) + (bullishHeadline.length > 60 ? "..." : "") : null;
+          msg = catalystOverride
+            ? `BUY $${(suggestAmt / 1000).toFixed(0)}k — RSI high but ${pctStr}% off ATH, bullish news + momentum`
+            : `BUY $${(suggestAmt / 1000).toFixed(0)}k — ${pctStr}% off ATH${nearDemand ? ", order block" : ""}${maxTranches < 4 ? ", trend caution" : ""}`;
+          if (newsSnip) msg += ` | News: ${newsSnip}`;
         } else if (q.pctDown >= 5) {
           type = "info";
           msg = `WATCH — ${pctStr}% off ATH, waiting for confluence`;
@@ -889,13 +900,14 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
           type = "caution"; msg = `REDUCE OR BREAK EVEN — at sell block, up ${gainPct.toFixed(1)}%, re-enter lower`;
         } else if (sellPct >= 25 && gainPct > 0 && (!isIBIT || sellPct >= 75)) {
           type = "sell"; msg = `TRIM ${sellPct}% ($${(sellValue / 1000).toFixed(1)}k) — RSI ${Math.round(rsi)}${divergence === "bearish" ? ", bearish div" : ""}`;
-        } else if (overbought && gainPct <= 0) {
-          type = "caution"; msg = `DO NOT ADD — RSI ${Math.round(rsi)}, underwater at $${h.avgCost.toFixed(0)}`;
+        } else if (overbought && gainPct <= 0 && !catalystOverride && (divergence === "bearish" || !above21ema || nearSupply)) {
+          const reasons = [rsi > 70 ? `RSI ${Math.round(rsi)}` : null, divergence === "bearish" ? "bearish div" : null, !above21ema ? "lost 21 EMA" : null, nearSupply ? "at sell block" : null].filter(Boolean).join(", ");
+          type = "caution"; msg = `DO NOT ADD — ${reasons}, underwater at $${h.avgCost.toFixed(0)}`;
         }
       }
 
-      if (!h && isMag6 && overbought && !type) {
-        type = "caution"; msg = `DO NOT BUY — RSI ${Math.round(rsi)}, wait for pullback`;
+      if (!h && isMag6 && overbought && !type && (divergence === "bearish" || nearSupply || (rsi && rsi > 80))) {
+        type = "caution"; msg = `DO NOT BUY — RSI ${Math.round(rsi)}${divergence === "bearish" ? ", bearish div" : ""}${nearSupply ? ", at sell block" : ""}`;
       }
 
       if (!type) {
