@@ -8088,10 +8088,10 @@ function FinanceChatTab({ nwData, portData, cfData, settings, rates, theme, rule
    ═══════════════════════════════════════════════════════════ */
 const TABS = [
   { key: "overview", label: "Overview", iconName: "home" },
+  { key: "watchlist", label: "Watchlist", iconName: "telescope" },
   { key: "networth", label: "Net Worth", iconName: "chart" },
   { key: "portfolio", label: "Portfolio", iconName: "briefcase" },
   { key: "cashflow", label: "Income & Expenses", iconName: "wallet" },
-  { key: "watchlist", label: "Watchlist", iconName: "telescope" },
   { key: "settings", label: "Settings", iconName: "gear" },
 ];
 
