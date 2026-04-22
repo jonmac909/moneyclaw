@@ -5958,6 +5958,7 @@ function CashFlowTab({ data, setData, nwData, settings, rates, theme, hide }) {
         const getSubHistory = (sub) => {
           const key = sub._matchKey || sub.name.toLowerCase();
           return txns.filter(t => {
+            if (t.type !== "expense") return false;
             const norm = normalizeMerchant(t.description);
             return norm === key || norm.includes(key) || key.includes(norm);
           }).sort((a, b) => new Date(b.date) - new Date(a.date));
