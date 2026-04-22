@@ -861,6 +861,9 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
         if (score >= 5 && suggestAmt > 0) {
           type = "buy";
           msg = `BUY $${(suggestAmt / 1000).toFixed(0)}k — ${pctStr}% off ATH${nearDemand ? ", at order block" : ""}.${maxTranches < 4 ? " Trend caution." : ""}`;
+        } else if (q.pctDown >= 5) {
+          type = "info";
+          msg = `${pctStr}% off ATH — watching for more confluence.`;
         }
       }
 
@@ -1542,6 +1545,7 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
                 {a.type === "sell" && <span style={{ background: C.red + "22", color: C.red, padding: "0 5px", borderRadius: 5, fontSize: 9, fontWeight: 700 }}>SELL</span>}
                 {(a.type === "caution" || a.type === "danger") && <span style={{ background: C.orange + "22", color: C.orange, padding: "0 5px", borderRadius: 5, fontSize: 9, fontWeight: 700 }}>WAIT</span>}
                 {a.type === "buy" && a.score >= 5 && <span style={{ background: C.green + "22", color: C.green, padding: "0 5px", borderRadius: 5, fontSize: 9, fontWeight: 700 }}>{a.score}pts</span>}
+                {a.type === "info" && <span style={{ background: C.muted + "22", color: C.muted, padding: "0 5px", borderRadius: 5, fontSize: 9, fontWeight: 700 }}>WATCH</span>}
                 {pctTag && <span style={{ color: pctClr, fontWeight: 600, fontSize: 11, minWidth: 45 }}>{pctTag}</span>}
                 {otherTags.map(tag => (
                   <span key={tag} style={{ background: C.card2, color: C.muted, padding: "0 5px", borderRadius: 5, fontSize: 9, fontWeight: 600, whiteSpace: "nowrap" }}>{tag}</span>
@@ -7345,6 +7349,7 @@ function WatchlistTab({ data, setData, portData, settings, rates, theme }) {
                   <span style={{ fontWeight: 700, color: a.type === "sell" ? C.red : C.accent, minWidth: 50 }}>{displaySym(a.sym)}</span>
                   {a.type === "sell" && <span style={{ background: C.red + "22", color: C.red, padding: "0 5px", borderRadius: 5, fontSize: 9, fontWeight: 700 }}>SELL</span>}
                   {a.type === "buy" && a.score >= 5 && <span style={{ background: C.green + "22", color: C.green, padding: "0 5px", borderRadius: 5, fontSize: 9, fontWeight: 700 }}>{a.score}pts</span>}
+                {a.type === "info" && <span style={{ background: C.muted + "22", color: C.muted, padding: "0 5px", borderRadius: 5, fontSize: 9, fontWeight: 700 }}>WATCH</span>}
                   {pctTag && <span style={{ color: pctClr, fontWeight: 600, fontSize: 11, minWidth: 45 }}>{pctTag}</span>}
                   {otherTags.map(tag => (
                     <span key={tag} style={{ background: C.card2, color: C.muted, padding: "0 5px", borderRadius: 5, fontSize: 9, fontWeight: 600, whiteSpace: "nowrap" }}>{tag}</span>
