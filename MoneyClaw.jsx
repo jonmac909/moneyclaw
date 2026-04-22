@@ -1507,61 +1507,41 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
           <button style={s.btnSm} onClick={() => addTodo(newTodo)}>Add</button>
         </div>
 
-        {/* Auto-suggestions from rules + market data */}
+        {/* Auto-inject coach signals directly into to-do list */}
         {(() => {
-          const suggestions = [];
-          const vixP = vix.price || 0;
           const existingTexts = new Set(todos.map(t => t.text));
+          const autoTodos = [];
+          const vixP = vix.price || 0;
 
-          // VIX-based suggestions
-          if (vixP >= 25) suggestions.push("DCA extra into ETFs — VIX is elevated (fear = opportunity)");
-          if (vixP >= 30) suggestions.push("Deploy extra cash tranche — market panic, historically great entry");
+          if (vixP >= 25 && !existingTexts.has("DCA extra into ETFs — VIX is elevated (fear = opportunity)"))
+            autoTodos.push("DCA extra into ETFs — VIX is elevated (fear = opportunity)");
+          if (vixP >= 30 && !existingTexts.has("Deploy extra cash tranche — market panic, historically great entry"))
+            autoTodos.push("Deploy extra cash tranche — market panic, historically great entry");
 
-          // Rule-based suggestions
-          (rules || []).forEach(r => {
-            const rt = r.text.toLowerCase();
-            if (rt.includes("dca") && !existingTexts.has("Execute DCA schedule")) {
-              suggestions.push("Execute DCA schedule");
-            }
-            if (rt.includes("rebalance") || rt.includes("rebalancing")) {
-              suggestions.push("Review portfolio allocation and rebalance if needed");
-            }
-            if ((rt.includes("emergency") || rt.includes("cash reserve")) && !existingTexts.has("Check emergency fund level")) {
-              suggestions.push("Check emergency fund level");
-            }
-          });
-
-          // Buy signals from confluence scoring
           actionFeed.filter(a => a.type === "buy" && a.score >= 5).slice(0, 3).forEach(a => {
-            if (!existingTexts.has(a.msg)) suggestions.push(a.msg);
+            if (!existingTexts.has(a.msg)) autoTodos.push(a.msg);
           });
-
-          // Sell signals
           actionFeed.filter(a => a.type === "sell").slice(0, 3).forEach(a => {
-            if (!existingTexts.has(a.msg)) suggestions.push(a.msg);
+            if (!existingTexts.has(a.msg)) autoTodos.push(a.msg);
           });
-
-          // Caution signals (do not buy, do not add, break even)
           actionFeed.filter(a => a.type === "caution").slice(0, 3).forEach(a => {
-            if (!existingTexts.has(a.msg)) suggestions.push(a.msg);
+            if (!existingTexts.has(a.msg)) autoTodos.push(a.msg);
           });
 
-          // Dedupe against existing todos
-          const filtered = suggestions.filter(s2 => !existingTexts.has(s2));
-          if (filtered.length === 0) return null;
-
-          return (
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>Suggested by Coach</div>
-              {filtered.map((s2, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", borderBottom: `1px solid ${C.border}10` }}>
-                  <span style={{ fontSize: 9, color: C.accent }}>◆</span>
-                  <span style={{ flex: 1, fontSize: 13, color: C.muted }}>{s2}</span>
-                  <button onClick={() => addTodo(s2)} style={{ background: C.accent + "22", color: C.accent, border: "none", borderRadius: 4, padding: "2px 8px", fontSize: 9, cursor: "pointer", whiteSpace: "nowrap" }}>+ Add</button>
-                </div>
-              ))}
-            </div>
-          );
+          if (autoTodos.length > 0) {
+            const newOnes = autoTodos.filter(t => !existingTexts.has(t));
+            if (newOnes.length > 0) {
+              setTimeout(() => {
+                setTodos(prev => {
+                  const existing = new Set(prev.map(t => t.text));
+                  const toAdd = newOnes.filter(t => !existing.has(t));
+                  if (toAdd.length === 0) return prev;
+                  return [...prev, ...toAdd.map(t => ({ id: uid(), text: t, done: false, created: new Date().toISOString(), source: "coach" }))];
+                });
+              }, 0);
+            }
+          }
+          return null;
         })()}
 
         {todos.filter(t => !t.done).map(t => (
