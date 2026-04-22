@@ -426,6 +426,90 @@ function calcRSI(prices, period = 14) {
   return 100 - (100 / (1 + rs));
 }
 
+/* Helper: detect order blocks from OHLC candles.
+   An order block is a candle with a small body and long wick (doji/hammer)
+   showing institutional rejection. Returns array of { price, type, date, strength }. */
+function detectOrderBlocks(candles) {
+  const blocks = [];
+  for (let i = 1; i < candles.length - 1; i++) {
+    const c = candles[i];
+    if (!c.open || !c.close || !c.high || !c.low) continue;
+    const body = Math.abs(c.close - c.open);
+    const range = c.high - c.low;
+    if (range === 0) continue;
+    const bodyRatio = body / range;
+    const lowerWick = Math.min(c.open, c.close) - c.low;
+    const upperWick = c.high - Math.max(c.open, c.close);
+
+    // Demand block: small body + long lower wick (buyers stepped in)
+    if (bodyRatio < 0.35 && lowerWick > body * 2) {
+      const next = candles[i + 1];
+      if (next && next.close > c.close) {
+        blocks.push({
+          price: Math.min(c.open, c.close),
+          wickLow: c.low,
+          type: "demand",
+          date: c.date,
+          strength: lowerWick / range,
+        });
+      }
+    }
+    // Supply block: small body + long upper wick (sellers stepped in)
+    if (bodyRatio < 0.35 && upperWick > body * 2) {
+      const next = candles[i + 1];
+      if (next && next.close < c.close) {
+        blocks.push({
+          price: Math.max(c.open, c.close),
+          wickHigh: c.high,
+          type: "supply",
+          date: c.date,
+          strength: upperWick / range,
+        });
+      }
+    }
+  }
+  return blocks.slice(-10);
+}
+
+/* Helper: check for bullish/bearish RSI divergence */
+function detectDivergence(prices, rsiValues) {
+  if (prices.length < 5 || rsiValues.length < 5) return null;
+  const len = Math.min(prices.length, rsiValues.length);
+  const recent = len - 1;
+  const lookback = Math.max(0, len - 20);
+  let priceLow1 = Infinity, priceLow1Idx = recent;
+  let priceLow2 = Infinity, priceLow2Idx = recent;
+  for (let i = recent; i >= lookback; i--) {
+    if (prices[i] < priceLow1) {
+      priceLow2 = priceLow1; priceLow2Idx = priceLow1Idx;
+      priceLow1 = prices[i]; priceLow1Idx = i;
+    } else if (prices[i] < priceLow2) {
+      priceLow2 = prices[i]; priceLow2Idx = i;
+    }
+  }
+  // Bullish divergence: price making lower low but RSI making higher low
+  if (priceLow1Idx > priceLow2Idx && priceLow1 < priceLow2
+      && rsiValues[priceLow1Idx] > rsiValues[priceLow2Idx]) {
+    return "bullish";
+  }
+  // Bearish: price making higher high but RSI making lower high
+  let priceHigh1 = -Infinity, priceHigh1Idx = recent;
+  let priceHigh2 = -Infinity, priceHigh2Idx = recent;
+  for (let i = recent; i >= lookback; i--) {
+    if (prices[i] > priceHigh1) {
+      priceHigh2 = priceHigh1; priceHigh2Idx = priceHigh1Idx;
+      priceHigh1 = prices[i]; priceHigh1Idx = i;
+    } else if (prices[i] > priceHigh2) {
+      priceHigh2 = prices[i]; priceHigh2Idx = i;
+    }
+  }
+  if (priceHigh1Idx > priceHigh2Idx && priceHigh1 > priceHigh2
+      && rsiValues[priceHigh1Idx] < rsiValues[priceHigh2Idx]) {
+    return "bearish";
+  }
+  return null;
+}
+
 /* 1. QUOTES — batch price data */
 app.get("/api/market/quote", async (req, res) => {
   try {
@@ -475,28 +559,42 @@ app.get("/api/market/history", async (req, res) => {
     const period1 = new Date();
     period1.setFullYear(period1.getFullYear() - 1);
 
-    const result = await yahooFinance.chart(symbol, {
-      period1,
-      interval: "1d",
-    });
+    const [dailyResult, weeklyResult] = await Promise.all([
+      yahooFinance.chart(symbol, { period1, interval: "1d" }),
+      yahooFinance.chart(symbol, { period1, interval: "1wk" }).catch(() => null),
+    ]);
 
-    const quotes = result.quotes || [];
+    const quotes = dailyResult.quotes || [];
     const closes = quotes.map(q => q.close).filter(Boolean);
 
-    // Weekly closes for weekly RSI
-    const weeklyCloses = [];
-    for (let i = 0; i < quotes.length; i += 5) {
-      const weekSlice = quotes.slice(i, i + 5).filter(q => q.close);
-      if (weekSlice.length > 0) weeklyCloses.push(weekSlice[weekSlice.length - 1].close);
+    // Daily RSI(14)
+    const dailyRsi14 = calcRSI(closes, 14);
+    const dailyRsi14Prev = closes.length > 15 ? calcRSI(closes.slice(0, -1), 14) : null;
+
+    // Weekly candles + RSI
+    const weeklyQuotes = weeklyResult?.quotes || [];
+    const weeklyCloses = weeklyQuotes.map(q => q.close).filter(Boolean);
+    const weeklyRsi14 = calcRSI(weeklyCloses, 14);
+    const weeklyRsi14Prev = weeklyCloses.length > 15 ? calcRSI(weeklyCloses.slice(0, -1), 14) : null;
+
+    // Rolling RSI array for divergence detection
+    const rollingRsi = [];
+    for (let i = 15; i <= closes.length; i++) {
+      rollingRsi.push(calcRSI(closes.slice(0, i), 14) || 0);
     }
+    const divergence = detectDivergence(closes.slice(-rollingRsi.length), rollingRsi);
+
+    // Order blocks from weekly candles
+    const weeklyOB = detectOrderBlocks(weeklyQuotes);
+
+    // 52-week high for % from ATH
+    const high52w = closes.length > 0 ? Math.max(...closes) : 0;
 
     const price = closes.length > 0 ? closes[closes.length - 1] : 0;
     const ema8 = calcEMA(closes, 8);
     const ema21 = calcEMA(closes, 21);
     const ema50 = calcEMA(closes, 50);
     const ema200 = calcEMA(closes, 200);
-    const rsi14 = calcRSI(weeklyCloses, 14);
-    const rsi14Prev = weeklyCloses.length > 15 ? calcRSI(weeklyCloses.slice(0, -1), 14) : null;
 
     // Generate signals
     const signals = [];
@@ -508,18 +606,34 @@ app.get("/api/market/history", async (req, res) => {
     if (ema200 !== null && price > ema200) signals.push("Above 200 EMA");
     if (ema8 !== null && ema21 !== null && ema8 > ema21) signals.push("8 EMA > 21 EMA");
     if (ema8 !== null && ema21 !== null && ema8 < ema21) signals.push("8 EMA < 21 EMA");
-    if (rsi14 !== null && rsi14 < 30) signals.push("Weekly RSI Oversold");
-    if (rsi14 !== null && rsi14 > 70) signals.push("Weekly RSI Overbought");
-    if (rsi14 !== null && rsi14 >= 30 && rsi14 <= 70) signals.push("Weekly RSI Neutral");
+    if (dailyRsi14 !== null && dailyRsi14 < 30) signals.push("Daily RSI Oversold");
+    if (dailyRsi14 !== null && dailyRsi14 < 40) signals.push("Daily RSI Weak");
+    if (dailyRsi14 !== null && dailyRsi14 > 70) signals.push("Daily RSI Overbought");
+    if (weeklyRsi14 !== null && weeklyRsi14 < 30) signals.push("Weekly RSI Oversold");
+    if (weeklyRsi14 !== null && weeklyRsi14 > 70) signals.push("Weekly RSI Overbought");
+    if (divergence === "bullish") signals.push("Bullish Divergence");
+    if (divergence === "bearish") signals.push("Bearish Divergence");
+
+    // Check proximity to order blocks
+    const nearDemand = weeklyOB.filter(ob => ob.type === "demand" && price <= ob.price * 1.02 && price >= ob.wickLow * 0.98);
+    const nearSupply = weeklyOB.filter(ob => ob.type === "supply" && price >= ob.price * 0.98 && price <= ob.wickHigh * 1.02);
+    if (nearDemand.length > 0) signals.push("Near Weekly Demand Block");
+    if (nearSupply.length > 0) signals.push("Near Weekly Supply Block");
 
     res.json({
-      symbol, price,
+      symbol, price, high52w,
       ema8: ema8 ? +ema8.toFixed(2) : null,
       ema21: ema21 ? +ema21.toFixed(2) : null,
       ema50: ema50 ? +ema50.toFixed(2) : null,
       ema200: ema200 ? +ema200.toFixed(2) : null,
-      rsi14: rsi14 ? +rsi14.toFixed(1) : null,
-      rsi14Prev: rsi14Prev ? +rsi14Prev.toFixed(1) : null,
+      rsi14: dailyRsi14 ? +dailyRsi14.toFixed(1) : null,
+      rsi14Prev: dailyRsi14Prev ? +dailyRsi14Prev.toFixed(1) : null,
+      weeklyRsi14: weeklyRsi14 ? +weeklyRsi14.toFixed(1) : null,
+      weeklyRsi14Prev: weeklyRsi14Prev ? +weeklyRsi14Prev.toFixed(1) : null,
+      divergence,
+      orderBlocks: weeklyOB,
+      nearDemandBlock: nearDemand.length > 0 ? nearDemand[0] : null,
+      nearSupplyBlock: nearSupply.length > 0 ? nearSupply[0] : null,
       signals,
     });
   } catch (err) {

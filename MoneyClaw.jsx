@@ -791,59 +791,149 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
       const todayUp = q.changePct > 0;
       const bouncing = todayUp && rsiRising && q.pctDown > 3;
 
-      /* Build composite opportunity score (higher = better buy opportunity) */
+      /* ── Confluence scoring system ── */
+      const isMag6 = MAG7.includes(sym);
       const tags = [`-${q.pctDown?.toFixed(1)}%`];
       if (rsi) tags.push(`RSI ${Math.round(rsi)}`);
-
-      let score = 0;
-      /* Discount from ATH (0-30 pts) — deeper discount = better opportunity */
-      score += Math.min(30, q.pctDown * 1.5);
-      /* RSI bonus (0-20 pts) — lower RSI = more oversold = better entry */
-      if (rsi) score += Math.max(0, (70 - rsi) * 0.4);
-      /* Momentum bonus (0-15 pts) — RSI rising = recovery underway */
-      if (rsiRising) score += 10;
-      if (bouncing) score += 5;
-      /* Today's move (0-5 pts) — green day during dip = strength */
-      if (todayUp && q.pctDown > 3) score += Math.min(5, q.changePct * 2);
-      /* Below cost basis bonus (0-10 pts) — avg down opportunity */
-      if (belowAvg) score += 10;
-      /* Below 200 EMA penalty if RSI still falling (-5 pts) */
-      if (below200 && rsiFalling) score -= 5;
-      /* Overbought penalty */
-      if (overbought) score -= 15;
-
-      let type, msg;
       const pctStr = q.pctDown.toFixed(1);
       const rsiStr = rsi ? `RSI ${Math.round(rsi)}${rsiRising ? " ↑" : rsiFalling ? " ↓" : ""}` : "";
       const todayStr = todayUp ? `+${q.changePct.toFixed(1)}% today` : q.changePct ? `${q.changePct.toFixed(1)}% today` : "";
+      const nearDemand = tech?.nearDemandBlock;
+      const nearSupply = tech?.nearSupplyBlock;
+      const divergence = tech?.divergence;
+      const below50 = tech?.ema50 && q.price < tech.ema50;
+      const above8ema = tech?.ema8 && q.price > tech.ema8;
+      const above21ema = tech?.ema21 && q.price > tech.ema21;
+      const holdingValue = h ? h.totalQty * q.price : 0;
+      const gainPct = h && h.avgCost > 0 ? ((q.price - h.avgCost) / h.avgCost) * 100 : 0;
+      const vixLevel = quotes["^VIX"]?.price || 0;
+      const spyQ = quotes["VOO"] || {};
+      const stockSpecificDrop = q.changePct < -2 && spyQ.changePct > -0.5;
 
-      if (oversold && rsiFalling) {
-        type = "danger"; msg = `${name} — ${rsiStr}, still falling. ${pctStr}% off ATH. Wait for reversal.`;
-        tags.push("Falling");
-      } else if (oversold && rsiRising) {
-        type = "buy"; msg = `${name} — ${rsiStr} reversing from oversold! ${pctStr}% off ATH. ${todayStr}. Strong entry signal.`;
-        tags.push("RSI Reversal");
-      } else if (bouncing && q.pctDown >= 10) {
-        type = "buy"; msg = `${name} bouncing from deep discount — ${pctStr}% off ATH, ${todayStr}, ${rsiStr}. High conviction.`;
-        tags.push("Bounce");
-      } else if (bouncing) {
-        type = "buy"; msg = `${name} bouncing — ${todayStr}, ${rsiStr}. ${pctStr}% from ATH.`;
-        tags.push("Bounce");
-      } else if (belowAvg) {
-        const discount = ((h.avgCost - q.price) / h.avgCost * 100).toFixed(1);
-        type = "avgdown"; msg = `${name} — ${discount}% below your cost. ${rsiStr}. ${todayStr}. Avg down opportunity.`;
-      } else if (q.pctDown >= 15) {
-        type = "buy"; msg = `${name} — deep ${pctStr}% discount from ATH. ${rsiStr}. ${todayStr}.`;
-      } else if (q.pctDown >= 5) {
-        type = "buy"; msg = `${name} — ${pctStr}% off ATH. ${rsiStr}. ${todayStr}.`;
-      } else if (below200) {
-        type = "danger"; msg = `${name} below 200 EMA. ${rsiStr}. ${rsiRising ? "Momentum recovering." : "Watch for support."}`;
-        tags.push("↓200");
-      } else if (overbought) {
-        type = "info"; msg = `${name} — ${rsiStr} overbought. Near ATH. Wait for pullback.`;
-        tags.push("Overbought");
-      } else {
-        type = "info"; msg = `${name} — ${pctStr}% from ATH. ${rsiStr}. ${todayStr}.`;
+      let type, msg;
+      let score = 0;
+
+      /* ═══ BUY SIGNALS (mag 6 only) ═══ */
+      if (isMag6 && q.pctDown >= 3 && holdingValue < 30000) {
+        /* Drop from recent high */
+        if (q.pctDown >= 30) score += 8;
+        else if (q.pctDown >= 20) score += 6;
+        else if (q.pctDown >= 10) score += 4;
+        else if (q.pctDown >= 5) score += 2;
+
+        /* Order block proximity */
+        if (nearDemand) { score += 2; tags.push("Order Block"); }
+
+        /* RSI */
+        if (rsi && rsi < 30) { score += 2; tags.push("RSI <30"); }
+        else if (rsi && rsi < 40) { score += 1; tags.push("RSI <40"); }
+
+        /* Divergence */
+        if (divergence === "bullish") { score += 2; tags.push("Bull Div"); }
+
+        /* VIX */
+        if (vixLevel >= 30) { score += 2; tags.push("VIX 30+"); }
+        else if (vixLevel >= 25) { score += 1; tags.push("VIX 25+"); }
+
+        /* Volume/momentum */
+        if (rsiRising) score += 1;
+        if (below200) score += 1;
+
+        /* Trend filter — cap deployment if below key EMAs */
+        let maxTranches = 4;
+        if (below200 && below50) { maxTranches = 1; tags.push("↓200 — tranche 1 only"); }
+        else if (below200) { maxTranches = 2; tags.push("↓200 — max 50%"); }
+
+        /* Stock-specific bad news filter — halve the amount */
+        let amtMultiplier = 1;
+        if (stockSpecificDrop) { amtMultiplier = 0.5; tags.push("Stock-specific drop"); }
+
+        /* Sizing */
+        const room = 30000 - holdingValue;
+        let suggestAmt = 0;
+        if (score >= 13) suggestAmt = 30000;
+        else if (score >= 10) suggestAmt = Math.min(25000, 20000);
+        else if (score >= 7) suggestAmt = Math.min(15000, 10000);
+        else if (score >= 5) suggestAmt = 5000;
+        suggestAmt = Math.min(suggestAmt * amtMultiplier, room);
+        suggestAmt = Math.round(suggestAmt / 1000) * 1000;
+
+        if (score >= 5 && suggestAmt > 0) {
+          const amtStr = `$${(suggestAmt / 1000).toFixed(0)}k`;
+          const obStr = nearDemand ? ` at order block ($${nearDemand.price.toFixed(0)})` : "";
+          type = "buy";
+          msg = `${name} — ${pctStr}% off ATH${obStr}, ${rsiStr}. ${score}pts → buy ${amtStr}.`;
+          if (maxTranches < 4) msg += ` (max ${maxTranches * 25}% deploy, trend caution)`;
+        } else if (score >= 3) {
+          type = "info";
+          msg = `${name} — ${pctStr}% off ATH, ${rsiStr}. ${score}pts — watch, not enough confluence yet.`;
+        }
+      }
+
+      /* ═══ SELL SIGNALS (positions we hold) ═══ */
+      if (h && holdingValue > 0 && gainPct > 0) {
+        let sellPct = 0;
+        let sellReason = [];
+
+        /* Supply block */
+        if (nearSupply) { sellPct += 25; sellReason.push("sell block"); tags.push("Sell Block"); }
+
+        /* RSI overbought — check trend strength */
+        if (overbought) {
+          if (!above8ema) {
+            sellPct += 25; sellReason.push("RSI >70 + lost 8 EMA");
+          } else if (!above21ema) {
+            sellPct += 50; sellReason.push("RSI >70 + lost 21 EMA");
+          } else {
+            sellPct += 25; sellReason.push("RSI >70 (trend intact, trim)");
+          }
+        }
+
+        /* RSI crossed back below 70 (momentum fading) */
+        if (rsi && rsiPrev && rsiPrev > 70 && rsi <= 70) {
+          if (!above21ema) { sellPct += 50; sellReason.push("RSI fell below 70 + lost 21 EMA"); }
+          else { sellPct += 25; sellReason.push("RSI fell below 70"); }
+          tags.push("RSI Xdown 70");
+        }
+
+        /* Bearish divergence */
+        if (divergence === "bearish") { sellPct += 25; sellReason.push("bearish divergence"); tags.push("Bear Div"); }
+
+        /* Gain-based exits */
+        if (gainPct >= 100) { sellPct = Math.max(sellPct, 50); sellReason.push(`up ${gainPct.toFixed(0)}%`); }
+
+        /* Minimum hold check */
+        sellPct = Math.min(sellPct, 100);
+        const sellValue = holdingValue * (sellPct / 100);
+        const remainAfterSell = holdingValue - sellValue;
+        if (remainAfterSell < 2500 && remainAfterSell > 0 && sellPct < 100) {
+          sellPct = Math.max(0, Math.round((1 - 2500 / holdingValue) * 100));
+        }
+
+        /* Break-even exit at sell block */
+        if (nearSupply && gainPct > 0 && gainPct < 10 && sellPct === 0) {
+          type = "info";
+          msg = `${name} at sell block, up only ${gainPct.toFixed(1)}%. Consider selling to break even — re-enter at next order block for a better entry.`;
+        } else if (sellPct >= 25) {
+          type = "sell";
+          const reasons = sellReason.join(" + ");
+          msg = `${name} — ${reasons}. ${rsiStr}. Consider selling ${sellPct}% ($${(sellValue / 1000).toFixed(1)}k).`;
+        }
+      }
+
+      /* ═══ FALLBACK for non-mag6 or no signal ═══ */
+      if (!type) {
+        if (oversold && rsiFalling) {
+          type = "danger"; msg = `${name} — ${rsiStr}, still falling. ${pctStr}% off ATH. Wait for reversal.`; tags.push("Falling");
+        } else if (oversold && rsiRising) {
+          type = "buy"; msg = `${name} — ${rsiStr} reversing from oversold! ${pctStr}% off ATH. ${todayStr}.`; tags.push("RSI Reversal"); score += 15;
+        } else if (below200) {
+          type = "danger"; msg = `${name} below 200 EMA. ${rsiStr}. ${rsiRising ? "Momentum recovering." : "Watch for support."}`; tags.push("↓200");
+        } else if (overbought && !h) {
+          type = "info"; msg = `${name} — ${rsiStr} overbought. Near ATH. Wait for pullback.`; tags.push("Overbought");
+        } else if (q.pctDown >= 5) {
+          type = "info"; msg = `${name} — ${pctStr}% from ATH. ${rsiStr}. ${todayStr}.`; score += q.pctDown;
+        }
       }
 
       if (type) {
@@ -1495,7 +1585,9 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
             const pctClr = pctColor(a.sym, Math.abs(pctVal));
             return (
               <div key={a.sym + a.type} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: i < actionFeed.length - 1 ? `1px solid ${C.border}15` : "none", fontSize: 13 }}>
-                <span style={{ fontWeight: 700, color: C.accent, minWidth: 50 }}>{displaySym(a.sym)}</span>
+                <span style={{ fontWeight: 700, color: a.type === "sell" ? C.red : C.accent, minWidth: 50 }}>{displaySym(a.sym)}</span>
+                {a.type === "sell" && <span style={{ background: C.red + "22", color: C.red, padding: "0 5px", borderRadius: 5, fontSize: 9, fontWeight: 700 }}>SELL</span>}
+                {a.type === "buy" && a.score >= 5 && <span style={{ background: C.green + "22", color: C.green, padding: "0 5px", borderRadius: 5, fontSize: 9, fontWeight: 700 }}>{a.score}pts</span>}
                 {pctTag && <span style={{ color: pctClr, fontWeight: 600, fontSize: 11, minWidth: 45 }}>{pctTag}</span>}
                 {otherTags.map(tag => (
                   <span key={tag} style={{ background: C.card2, color: C.muted, padding: "0 5px", borderRadius: 5, fontSize: 9, fontWeight: 600, whiteSpace: "nowrap" }}>{tag}</span>
@@ -7282,7 +7374,9 @@ function WatchlistTab({ data, setData, portData, settings, rates, theme }) {
               const pctClr = pctColor(a.sym, Math.abs(pctVal));
               return (
                 <div key={a.sym + a.type} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", borderBottom: i < actionFeed.length - 1 ? `1px solid ${C.border}15` : "none", fontSize: 13 }}>
-                  <span style={{ fontWeight: 700, color: C.accent, minWidth: 50 }}>{displaySym(a.sym)}</span>
+                  <span style={{ fontWeight: 700, color: a.type === "sell" ? C.red : C.accent, minWidth: 50 }}>{displaySym(a.sym)}</span>
+                  {a.type === "sell" && <span style={{ background: C.red + "22", color: C.red, padding: "0 5px", borderRadius: 5, fontSize: 9, fontWeight: 700 }}>SELL</span>}
+                  {a.type === "buy" && a.score >= 5 && <span style={{ background: C.green + "22", color: C.green, padding: "0 5px", borderRadius: 5, fontSize: 9, fontWeight: 700 }}>{a.score}pts</span>}
                   {pctTag && <span style={{ color: pctClr, fontWeight: 600, fontSize: 11, minWidth: 45 }}>{pctTag}</span>}
                   {otherTags.map(tag => (
                     <span key={tag} style={{ background: C.card2, color: C.muted, padding: "0 5px", borderRadius: 5, fontSize: 9, fontWeight: 600, whiteSpace: "nowrap" }}>{tag}</span>
