@@ -1520,11 +1520,19 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
             }
           });
 
-          // Opportunity-based suggestions
-          const bigDips = actionFeed.filter(a => a.type === "avgdown" || (a.type === "buy" && a.score >= 6));
-          bigDips.slice(0, 2).forEach(a => {
-            const txt = `Consider adding to ${displaySym(a.sym)} — on sale`;
-            if (!existingTexts.has(txt)) suggestions.push(txt);
+          // Buy signals from confluence scoring
+          actionFeed.filter(a => a.type === "buy" && a.score >= 5).slice(0, 3).forEach(a => {
+            if (!existingTexts.has(a.msg)) suggestions.push(a.msg);
+          });
+
+          // Sell signals
+          actionFeed.filter(a => a.type === "sell").slice(0, 3).forEach(a => {
+            if (!existingTexts.has(a.msg)) suggestions.push(a.msg);
+          });
+
+          // Break-even exit suggestions
+          actionFeed.filter(a => a.type === "info" && a.msg.includes("break even")).slice(0, 2).forEach(a => {
+            if (!existingTexts.has(a.msg)) suggestions.push(a.msg);
           });
 
           // Dedupe against existing todos
@@ -7353,6 +7361,19 @@ function WatchlistTab({ data, setData, portData, settings, rates, theme }) {
                   dangerouslySetInnerHTML={{ __html: line.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>') }} />
               ))}
             </div>
+            {actionFeed.filter(a => a.type === "buy" || a.type === "sell").length > 0 && (
+              <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}20` }}>
+                <div style={{ fontSize: 11, color: C.accent, fontWeight: 700, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Coach Signals</div>
+                {actionFeed.filter(a => a.type === "buy" || a.type === "sell").slice(0, 5).map((a, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 0", fontSize: 12 }}>
+                    <span style={{ fontWeight: 700, color: a.type === "sell" ? C.red : C.green, minWidth: 44 }}>{displaySym(a.sym)}</span>
+                    {a.type === "sell" && <span style={{ background: C.red + "22", color: C.red, padding: "0 5px", borderRadius: 4, fontSize: 9, fontWeight: 700 }}>SELL</span>}
+                    {a.type === "buy" && <span style={{ background: C.green + "22", color: C.green, padding: "0 5px", borderRadius: 4, fontSize: 9, fontWeight: 700 }}>{a.score}pts</span>}
+                    <span style={{ color: C.text, flex: 1 }}>{a.msg}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
