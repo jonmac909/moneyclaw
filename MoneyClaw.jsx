@@ -8242,7 +8242,7 @@ export default function MoneyClaw() {
         if (serverTxns > localTxns || !saved) {
           if (data.nw) setNwData(data.nw);
           if (data.portfolio) setPortData(data.portfolio);
-          if (data.cashflow) setCfData(data.cashflow);
+          if (data.cashflow) { setCfData(data.cashflow); serverCfRef.current = data.cashflow; }
           if (data.settings) setSettings(data.settings);
           if (data.rates) setRates(data.rates);
           if (data.watchlist?.tickers?.length > 0) setWatchlistData(data.watchlist);
@@ -8312,8 +8312,14 @@ export default function MoneyClaw() {
 
   /* Auto-save to window.name + localStorage + server file every 1.5 seconds */
   const lastServerSave = useRef(0);
+  const serverCfRef = useRef(null);
   const saveData = useCallback(() => {
-    if (!serverLoaded) return; // Don't save until server data is loaded
+    if (!serverLoaded) return;
+    // Never overwrite cashflow with empty data if server had accounts
+    if (serverCfRef.current && Object.keys(serverCfRef.current.bankAccounts || {}).length > 0
+        && Object.keys(cfData?.bankAccounts || {}).length === 0) {
+      return;
+    }
     try {
       const obj = { _mc: true, nw: nwData, portfolio: portData, cashflow: cfData, settings, rates, watchlist: watchlistData, todos, rules };
       const data = JSON.stringify(obj);
