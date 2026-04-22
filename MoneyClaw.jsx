@@ -886,7 +886,7 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
         }
 
         if (nearSupply && gainPct > 0 && gainPct < 10 && sellPct === 0) {
-          type = "caution"; msg = `BREAK EVEN — at sell block, up ${gainPct.toFixed(1)}%, re-enter lower`;
+          type = "caution"; msg = `REDUCE OR BREAK EVEN — at sell block, up ${gainPct.toFixed(1)}%, re-enter lower`;
         } else if (sellPct >= 25 && gainPct > 0 && (!isIBIT || sellPct >= 75)) {
           type = "sell"; msg = `TRIM ${sellPct}% ($${(sellValue / 1000).toFixed(1)}k) — RSI ${Math.round(rsi)}${divergence === "bearish" ? ", bearish div" : ""}`;
         } else if (overbought && gainPct <= 0) {
