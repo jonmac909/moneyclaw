@@ -870,8 +870,8 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
         }
       }
 
-      /* ═══ SELL SIGNALS (positions we hold) ═══ */
-      if (h && holdingValue > 0 && gainPct > 0) {
+      /* ═══ SELL / CAUTION SIGNALS (positions we hold) ═══ */
+      if (h && holdingValue > 0) {
         let sellPct = 0;
         let sellReason = [];
 
@@ -912,13 +912,25 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
 
         /* Break-even exit at sell block */
         if (nearSupply && gainPct > 0 && gainPct < 10 && sellPct === 0) {
-          type = "info";
-          msg = `${name} at sell block, up only ${gainPct.toFixed(1)}%. Consider selling to break even — re-enter at next order block for a better entry.`;
-        } else if (sellPct >= 25) {
+          type = "caution";
+          msg = `${name} at sell block, up only ${gainPct.toFixed(1)}%. Consider selling to break even — re-enter at next order block.`;
+          tags.push("Break Even");
+        } else if (sellPct >= 25 && gainPct > 0) {
           type = "sell";
           const reasons = sellReason.join(" + ");
-          msg = `${name} — ${reasons}. ${rsiStr}. Consider selling ${sellPct}% ($${(sellValue / 1000).toFixed(1)}k).`;
+          msg = `${name} — ${reasons}. ${rsiStr}. TRIM ${sellPct}% ($${(sellValue / 1000).toFixed(1)}k).`;
+        } else if (overbought && gainPct <= 0) {
+          type = "caution";
+          msg = `${name} — ${rsiStr}, overbought but you're underwater (avg $${h.avgCost.toFixed(0)}). DO NOT ADD — wait for pullback to avg down.`;
+          tags.push("Do Not Add");
         }
+      }
+
+      /* ═══ DO NOT BUY (no position + overbought) ═══ */
+      if (!h && isMag6 && overbought && !type) {
+        type = "caution";
+        msg = `${name} — ${rsiStr}, near ATH. DO NOT BUY — wait for a pullback.`;
+        tags.push("Do Not Buy");
       }
 
       /* ═══ FALLBACK — only show actionable signals ═══ */
@@ -1526,8 +1538,8 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
             if (!existingTexts.has(a.msg)) suggestions.push(a.msg);
           });
 
-          // Break-even exit suggestions
-          actionFeed.filter(a => a.type === "info" && a.msg.includes("break even")).slice(0, 2).forEach(a => {
+          // Caution signals (do not buy, do not add, break even)
+          actionFeed.filter(a => a.type === "caution").slice(0, 3).forEach(a => {
             if (!existingTexts.has(a.msg)) suggestions.push(a.msg);
           });
 
@@ -1589,8 +1601,9 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
             const pctClr = pctColor(a.sym, Math.abs(pctVal));
             return (
               <div key={a.sym + a.type} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: i < actionFeed.length - 1 ? `1px solid ${C.border}15` : "none", fontSize: 13 }}>
-                <span style={{ fontWeight: 700, color: a.type === "sell" ? C.red : C.accent, minWidth: 50 }}>{displaySym(a.sym)}</span>
+                <span style={{ fontWeight: 700, color: a.type === "sell" ? C.red : a.type === "caution" ? C.orange : C.accent, minWidth: 50 }}>{displaySym(a.sym)}</span>
                 {a.type === "sell" && <span style={{ background: C.red + "22", color: C.red, padding: "0 5px", borderRadius: 5, fontSize: 9, fontWeight: 700 }}>SELL</span>}
+                {a.type === "caution" && <span style={{ background: C.orange + "22", color: C.orange, padding: "0 5px", borderRadius: 5, fontSize: 9, fontWeight: 700 }}>WAIT</span>}
                 {a.type === "buy" && a.score >= 5 && <span style={{ background: C.green + "22", color: C.green, padding: "0 5px", borderRadius: 5, fontSize: 9, fontWeight: 700 }}>{a.score}pts</span>}
                 {pctTag && <span style={{ color: pctClr, fontWeight: 600, fontSize: 11, minWidth: 45 }}>{pctTag}</span>}
                 {otherTags.map(tag => (
@@ -7357,13 +7370,14 @@ function WatchlistTab({ data, setData, portData, settings, rates, theme }) {
                   dangerouslySetInnerHTML={{ __html: line.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>') }} />
               ))}
             </div>
-            {actionFeed.filter(a => a.type === "buy" || a.type === "sell").length > 0 && (
+            {actionFeed.filter(a => a.type === "buy" || a.type === "sell" || a.type === "caution").length > 0 && (
               <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}20` }}>
                 <div style={{ fontSize: 11, color: C.accent, fontWeight: 700, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Coach Signals</div>
-                {actionFeed.filter(a => a.type === "buy" || a.type === "sell").slice(0, 5).map((a, i) => (
+                {actionFeed.filter(a => a.type === "buy" || a.type === "sell" || a.type === "caution").slice(0, 5).map((a, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 0", fontSize: 12 }}>
-                    <span style={{ fontWeight: 700, color: a.type === "sell" ? C.red : C.green, minWidth: 44 }}>{displaySym(a.sym)}</span>
+                    <span style={{ fontWeight: 700, color: a.type === "sell" ? C.red : a.type === "caution" ? C.orange : C.green, minWidth: 44 }}>{displaySym(a.sym)}</span>
                     {a.type === "sell" && <span style={{ background: C.red + "22", color: C.red, padding: "0 5px", borderRadius: 4, fontSize: 9, fontWeight: 700 }}>SELL</span>}
+                    {a.type === "caution" && <span style={{ background: C.orange + "22", color: C.orange, padding: "0 5px", borderRadius: 4, fontSize: 9, fontWeight: 700 }}>WAIT</span>}
                     {a.type === "buy" && <span style={{ background: C.green + "22", color: C.green, padding: "0 5px", borderRadius: 4, fontSize: 9, fontWeight: 700 }}>{a.score}pts</span>}
                     <span style={{ color: C.text, flex: 1 }}>{a.msg}</span>
                   </div>
