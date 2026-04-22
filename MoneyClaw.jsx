@@ -871,7 +871,7 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
       }
 
       /* ═══ SELL / CAUTION SIGNALS (positions we hold) ═══ */
-      const holdingType = (data.holdings || []).find(hh => hh.ticker === sym)?.type;
+      const holdingType = (portData?.holdings || []).find(hh => hh.ticker === sym)?.type;
       const isETF = holdingType === "ETF";
       const isIBIT = sym === "IBIT";
       if (h && holdingValue > 0 && (!isETF || isIBIT)) {
