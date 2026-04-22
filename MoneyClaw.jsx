@@ -1514,15 +1514,15 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
       </div>
 
       {/* ── Opportunities ── */}
-      {actionFeed.length > 0 && (
+      {actionFeed.filter(a => a.type === "buy" || a.type === "info").length > 0 && (
         <div style={{ ...s.card, marginBottom: 20 }}>
           <h3 style={{ ...s.h3, display: "flex", alignItems: "center", gap: 8, cursor: "pointer", userSelect: "none" }}
             onClick={() => setCollapsed(p => ({ ...p, opps: !p.opps }))}>
             <span style={{ fontSize: 9, transition: "transform 0.2s", transform: collapsed.opps ? "rotate(-90deg)" : "rotate(0deg)" }}>▼</span>
             Opportunities
-            <span style={{ fontSize: 11, color: C.muted, fontWeight: 400 }}>{actionFeed.length} actions</span>
+            <span style={{ fontSize: 11, color: C.muted, fontWeight: 400 }}>{actionFeed.filter(a => a.type === "buy" || a.type === "info").length}</span>
           </h3>
-          {!collapsed.opps && actionFeed.map((a, i) => {
+          {!collapsed.opps && actionFeed.filter(a => a.type === "buy" || a.type === "info").map((a, i) => {
             const pctTag = a.signalTags.find(t => t.startsWith("-"));
             const otherTags = a.signalTags.filter(t => !t.startsWith("-"));
             const pctVal = pctTag ? parseFloat(pctTag) : 0;
