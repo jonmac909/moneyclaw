@@ -859,53 +859,22 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
         suggestAmt = Math.round(suggestAmt / 1000) * 1000;
 
         if (score >= 5 && suggestAmt > 0) {
-          const amtStr = `$${(suggestAmt / 1000).toFixed(0)}k`;
-          const obStr = nearDemand ? ` at order block ($${nearDemand.price.toFixed(0)})` : "";
           type = "buy";
-          msg = `${name} — ${pctStr}% off ATH${obStr}, ${rsiStr}. ${score}pts → buy ${amtStr}.`;
-          if (maxTranches < 4) msg += ` (max ${maxTranches * 25}% deploy, trend caution)`;
-        } else if (score >= 3) {
-          type = "info";
-          msg = `${name} — ${pctStr}% off ATH, ${rsiStr}. ${score}pts — watch, not enough confluence yet.`;
+          msg = `BUY $${(suggestAmt / 1000).toFixed(0)}k — ${pctStr}% off ATH${nearDemand ? ", at order block" : ""}.${maxTranches < 4 ? " Trend caution." : ""}`;
         }
       }
 
-      /* ═══ SELL / CAUTION SIGNALS (positions we hold) ═══ */
+      /* ═══ SELL / CAUTION SIGNALS ═══ */
       const holdingType = (portData?.holdings || []).find(hh => hh.ticker === sym)?.type;
       const isETF = holdingType === "ETF";
       const isIBIT = sym === "IBIT";
       if (h && holdingValue > 0 && (!isETF || isIBIT)) {
         let sellPct = 0;
-        let sellReason = [];
-
-        /* Supply block */
-        if (nearSupply) { sellPct += 25; sellReason.push("sell block"); tags.push("Sell Block"); }
-
-        /* RSI overbought — check trend strength */
-        if (overbought) {
-          if (!above8ema) {
-            sellPct += 25; sellReason.push("RSI >70 + lost 8 EMA");
-          } else if (!above21ema) {
-            sellPct += 50; sellReason.push("RSI >70 + lost 21 EMA");
-          } else {
-            sellPct += 25; sellReason.push("RSI >70 (trend intact, trim)");
-          }
-        }
-
-        /* RSI crossed back below 70 (momentum fading) */
-        if (rsi && rsiPrev && rsiPrev > 70 && rsi <= 70) {
-          if (!above21ema) { sellPct += 50; sellReason.push("RSI fell below 70 + lost 21 EMA"); }
-          else { sellPct += 25; sellReason.push("RSI fell below 70"); }
-          tags.push("RSI Xdown 70");
-        }
-
-        /* Bearish divergence */
-        if (divergence === "bearish") { sellPct += 25; sellReason.push("bearish divergence"); tags.push("Bear Div"); }
-
-        /* Gain-based exits */
-        if (gainPct >= 100) { sellPct = Math.max(sellPct, 50); sellReason.push(`up ${gainPct.toFixed(0)}%`); }
-
-        /* Minimum hold check */
+        if (nearSupply) sellPct += 25;
+        if (overbought) sellPct += above21ema ? 25 : 50;
+        if (rsi && rsiPrev && rsiPrev > 70 && rsi <= 70) sellPct += above21ema ? 25 : 50;
+        if (divergence === "bearish") sellPct += 25;
+        if (gainPct >= 100) sellPct = Math.max(sellPct, 50);
         sellPct = Math.min(sellPct, 100);
         const sellValue = holdingValue * (sellPct / 100);
         const remainAfterSell = holdingValue - sellValue;
@@ -913,42 +882,27 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
           sellPct = Math.max(0, Math.round((1 - 2500 / holdingValue) * 100));
         }
 
-        /* Break-even exit at sell block */
         if (nearSupply && gainPct > 0 && gainPct < 10 && sellPct === 0) {
-          type = "caution";
-          msg = `${name} at sell block, up only ${gainPct.toFixed(1)}%. Consider selling to break even — re-enter at next order block.`;
-          tags.push("Break Even");
+          type = "caution"; msg = `At sell block, small gain. Sell to break even, re-enter lower.`;
         } else if (sellPct >= 25 && gainPct > 0 && (!isIBIT || sellPct >= 75)) {
-          type = "sell";
-          const reasons = sellReason.join(" + ");
-          msg = `${name} — ${reasons}. ${rsiStr}. TRIM ${sellPct}% ($${(sellValue / 1000).toFixed(1)}k).`;
+          type = "sell"; msg = `TRIM ${sellPct}% ($${(sellValue / 1000).toFixed(1)}k) — RSI ${Math.round(rsi)}${divergence === "bearish" ? ", bearish div" : ""}.`;
         } else if (overbought && gainPct <= 0) {
-          type = "caution";
-          msg = `${name} — ${rsiStr}, overbought but you're underwater (avg $${h.avgCost.toFixed(0)}). DO NOT ADD — wait for pullback to avg down.`;
-          tags.push("Do Not Add");
+          type = "caution"; msg = `DO NOT ADD — RSI ${Math.round(rsi)}, underwater (avg $${h.avgCost.toFixed(0)}). Wait for pullback.`;
         }
       }
 
-      /* ═══ DO NOT BUY (no position + overbought) ═══ */
       if (!h && isMag6 && overbought && !type) {
-        type = "caution";
-        msg = `${name} — ${rsiStr}, near ATH. DO NOT BUY — wait for a pullback.`;
-        tags.push("Do Not Buy");
+        type = "caution"; msg = `DO NOT BUY — RSI ${Math.round(rsi)}, wait for pullback.`;
       }
 
-      /* ═══ FALLBACK — only show actionable signals ═══ */
       if (!type) {
-        if (oversold && rsiFalling) {
-          type = "danger"; msg = `${name} — ${rsiStr}, still falling. ${pctStr}% off ATH. WAIT for reversal.`; tags.push("Falling");
-        } else if (oversold && rsiRising) {
-          type = "buy"; msg = `${name} — ${rsiStr} reversing from oversold! ${pctStr}% off ATH. ${todayStr}. Strong entry.`; tags.push("RSI Reversal"); score += 15;
-        } else if (below200 && rsiFalling) {
-          type = "danger"; msg = `${name} below 200 EMA, ${rsiStr}. Watch for support.`; tags.push("↓200");
-        }
+        if (oversold && rsiFalling) { type = "danger"; msg = `WAIT — RSI ${Math.round(rsi)}, still falling.`; }
+        else if (oversold && rsiRising) { type = "buy"; msg = `RSI reversing from oversold. Strong entry.`; score += 15; }
+        else if (below200 && rsiFalling) { type = "danger"; msg = `Below 200 EMA, RSI ${Math.round(rsi)} falling. Watch.`; }
       }
 
       if (type) {
-        actions.push({ sym, type, msg, score: Math.round(score), signalTags: tags });
+        actions.push({ sym, type, msg, score: Math.round(score), signalTags: [`RSI ${rsi ? Math.round(rsi) : "?"}`] });
       }
     });
     const best = {};
