@@ -966,20 +966,35 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
   if (_cross === "golden") _score += 1;
   else if (_cross === "death") _score -= 2;
 
+  // Mag 6 RSI breadth adjusts the score
+  const _mag6Rsis = MAG7.map(s => technicals[s]?.rsi14).filter(Boolean);
+  const _ob6 = _mag6Rsis.filter(r => r > 70).length;
+  const _os6 = _mag6Rsis.filter(r => r < 40).length;
+  if (_ob6 >= 4) _score -= 3;
+  else if (_ob6 >= 2) _score -= 1;
+  if (_os6 >= 4) _score += 3;
+  else if (_os6 >= 3) _score += 2;
+
+  const _breadthNote = _ob6 >= 4 ? `${_ob6}/6 mag 6 overbought — top-heavy, don't add.`
+    : _ob6 >= 2 ? `${_ob6}/6 mag 6 overbought — slow down DCA.`
+    : _os6 >= 4 ? `${_os6}/6 mag 6 deeply oversold — rare opportunity, add aggressively.`
+    : _os6 >= 3 ? `${_os6}/6 mag 6 oversold — leaders are cheap, add more.`
+    : null;
+
   let vixSentiment = null, vixColor = null, vixTake = null;
   if (vixLevel > 0) {
     if (_score >= 4) { vixSentiment = "Risk-on"; vixColor = C.green;
-      vixTake = `Tape is decisively bullish — VIX ${vixLevel.toFixed(0)}${vixChg != null && vixChg < -3 ? ` bleeding lower (${vixChg.toFixed(1)}%)` : ""}, indexes near highs, momentum up. Stick to your deployment schedule — don't wait for a pullback that may not come.`;
+      vixTake = `Strong tape. VIX ${vixLevel.toFixed(0)}, momentum up. Deploy on schedule.${_breadthNote ? " " + _breadthNote : ""}`;
     } else if (_score >= 2) { vixSentiment = "Bullish bias"; vixColor = "#8ab864";
-      vixTake = `Constructive tape. ${vixChg != null && vixChg < -3 ? `Volatility crushing (VIX ${vixChg.toFixed(1)}%) ` : ""}${_qPct < 3 ? "buyers stepping in near highs" : `RSI ${_rsi?.toFixed(0) || "?"} healthy`}. Good window to keep deploying on schedule.`;
+      vixTake = `Constructive. VIX ${vixLevel.toFixed(0)}, ${_qPct < 3 ? "near highs" : `${_qPct.toFixed(1)}% pullback`}. Normal DCA.${_breadthNote ? " " + _breadthNote : ""}`;
     } else if (_score >= 0) { vixSentiment = "Mixed"; vixColor = "#A3B4C8";
-      vixTake = `No clear signal. ${vixLevel >= 18 ? `VIX ${vixLevel.toFixed(0)} elevated` : `VIX ${vixLevel.toFixed(0)} calm`}, ${_qPct < 3 ? "indexes near highs" : `${_qPct.toFixed(1)}% pullback`}. Stay on DCA schedule — don't front-load.`;
+      vixTake = `No clear edge. VIX ${vixLevel.toFixed(0)}, RSI ${_rsi?.toFixed(0) || "?"}. Stick to base DCA, don't front-load.${_breadthNote ? " " + _breadthNote : ""}`;
     } else if (_score >= -2) { vixSentiment = "Cautious"; vixColor = "#f59e0b";
-      vixTake = `Defensive tone. Fear creeping up${vixChg != null && vixChg > 0 ? ` (VIX +${vixChg.toFixed(1)}%)` : ""}, ${_rsi != null && _rsi < 50 ? `RSI ${_rsi.toFixed(0)} rolling` : "momentum fading"}. Hold dry powder for bigger drawdowns before adding beyond your base.`;
+      vixTake = `Defensive. VIX ${vixLevel.toFixed(0)}, momentum fading. Hold dry powder.${_breadthNote ? " " + _breadthNote : ""}`;
     } else if (_score >= -4) { vixSentiment = "Risk-off"; vixColor = C.orange;
-      vixTake = `Fear dominating. VIX ${vixLevel.toFixed(0)}, ${_qPct.toFixed(1)}% off ATH. Wait for RSI reversal or VIX ≥ 25 before stepping in harder — don't catch the knife.`;
+      vixTake = `Fear rising. VIX ${vixLevel.toFixed(0)}, ${_qPct.toFixed(1)}% off ATH. Wait for reversal.${_breadthNote ? " " + _breadthNote : ""}`;
     } else { vixSentiment = "Panic tape"; vixColor = C.red;
-      vixTake = `Extreme fear. VIX ${vixLevel.toFixed(0)}. Historically these are the entries you'll thank yourself for in 6–12 months — but only in tranches, only if your rules allow.`;
+      vixTake = `Extreme fear. VIX ${vixLevel.toFixed(0)}. Deploy in tranches — these entries pay off in 6–12 months.${_breadthNote ? " " + _breadthNote : ""}`;
     }
   }
 
@@ -1113,17 +1128,6 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
                   else lines.push(`RSI ${rsi.toFixed(0)}${dir ? ` and ${dir}` : ""} — neutral.`);
                 }
                 if (cross) lines.push(`QQQ ${cross}.`);
-
-                // Mag 6 RSI breadth → ETF guidance
-                const mag6Rsis = MAG7.map(s => technicals[s]?.rsi14).filter(Boolean);
-                const ob6 = mag6Rsis.filter(r => r > 70).length;
-                const os6 = mag6Rsis.filter(r => r < 40).length;
-                const osDeep = mag6Rsis.filter(r => r < 30).length;
-                if (osDeep >= 4) lines.push(`**Mag 6 breadth:** ${osDeep}/6 deeply oversold (RSI <30) — rare, aggressive ETF add.`);
-                else if (os6 >= 3) lines.push(`**Mag 6 breadth:** ${os6}/6 oversold — leaders are weak, good time to add QQQ/VOO.`);
-                else if (ob6 >= 4) lines.push(`**Mag 6 breadth:** ${ob6}/6 overbought — index is top-heavy, hold off on adding.`);
-                else if (ob6 >= 2) lines.push(`**Mag 6 breadth:** ${ob6}/6 overbought — cautious DCA, don't front-load.`);
-                else if (mag6Rsis.length > 0) lines.push(`**Mag 6 breadth:** ${ob6} overbought, ${os6} oversold — normal, stick to DCA schedule.`);
 
                 // VIX + RSI combo
                 if (vixLevel >= 25 && rsi != null && rsi < 30 && rsiPrev != null && rsi > rsiPrev) {
