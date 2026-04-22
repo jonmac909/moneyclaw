@@ -1114,6 +1114,17 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
                 }
                 if (cross) lines.push(`QQQ ${cross}.`);
 
+                // Mag 6 RSI breadth → ETF guidance
+                const mag6Rsis = MAG7.map(s => technicals[s]?.rsi14).filter(Boolean);
+                const ob6 = mag6Rsis.filter(r => r > 70).length;
+                const os6 = mag6Rsis.filter(r => r < 40).length;
+                const osDeep = mag6Rsis.filter(r => r < 30).length;
+                if (osDeep >= 4) lines.push(`**Mag 6 breadth:** ${osDeep}/6 deeply oversold (RSI <30) — rare, aggressive ETF add.`);
+                else if (os6 >= 3) lines.push(`**Mag 6 breadth:** ${os6}/6 oversold — leaders are weak, good time to add QQQ/VOO.`);
+                else if (ob6 >= 4) lines.push(`**Mag 6 breadth:** ${ob6}/6 overbought — index is top-heavy, hold off on adding.`);
+                else if (ob6 >= 2) lines.push(`**Mag 6 breadth:** ${ob6}/6 overbought — cautious DCA, don't front-load.`);
+                else if (mag6Rsis.length > 0) lines.push(`**Mag 6 breadth:** ${ob6} overbought, ${os6} oversold — normal, stick to DCA schedule.`);
+
                 // VIX + RSI combo
                 if (vixLevel >= 25 && rsi != null && rsi < 30 && rsiPrev != null && rsi > rsiPrev) {
                   lines.push("High VIX + RSI reversing from oversold — historically marks major bottoms.");
