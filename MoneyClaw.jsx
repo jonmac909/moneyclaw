@@ -1621,8 +1621,8 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
                     const boxColor = tag.includes("▲") ? C.green : tag.includes("▼") ? C.red : C.muted;
                     return <span key={ti} style={{ fontSize: 9, color: isBox ? boxColor : C.muted, background: isBox ? boxColor + "18" : C.card2, padding: "0 4px", borderRadius: 4, fontWeight: 600, whiteSpace: "nowrap", marginRight: 2 }}>{tag}</span>;
                   })}
-                  <span style={{ color: C.text, fontSize: 11, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.reason}</span>
-                  {s.cycleText && <span style={{ fontSize: 9, color: C.muted, whiteSpace: "nowrap", flexShrink: 0, marginLeft: 6 }}>{s.cycleText}</span>}
+                  <span style={{ color: C.text, fontSize: 11, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.cycleText || s.reason}</span>
+                  {s.cycleText && <span style={{ fontSize: 9, color: C.muted, whiteSpace: "nowrap", flexShrink: 0, marginLeft: 6 }}>{s.reason}</span>}
                 </div>
               ))}
             </div>
