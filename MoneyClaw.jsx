@@ -1575,7 +1575,25 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
               else if (rsi && rsi < 50 && !rsiRising) { action = "COOLING"; actionColor = C.muted; reason = `RSI ${Math.round(rsi)}, momentum slowing`; }
               else { action = "HOLD"; actionColor = C.muted; reason = `RSI ${rsi ? Math.round(rsi) : "?"}, neutral`; }
             }
-            return { sym, name, action, actionColor, reason, tags, isETF };
+            // Multi-timeframe cycle analysis
+            const dRsi = rsi ? Math.round(rsi) : null;
+            const wRsi = tech.weeklyRsi14 ? Math.round(tech.weeklyRsi14) : null;
+            const mRsi = tech.monthlyRsi14 ? Math.round(tech.monthlyRsi14) : null;
+            let cycle = "", confidence = "";
+            if (dRsi && wRsi && mRsi) {
+              if (dRsi < 30 && wRsi < 40 && mRsi < 50) { cycle = "Bottom forming"; confidence = "90% buy"; }
+              else if (dRsi < 40 && wRsi < 50 && mRsi > 50) { cycle = "Pullback in uptrend"; confidence = "80% buy"; }
+              else if (dRsi > 50 && wRsi > 50 && mRsi > 50 && dRsi < 70) { cycle = "Mid-cycle bull"; confidence = "60% hold"; }
+              else if (dRsi > 70 && wRsi > 60 && mRsi > 50 && wRsi < 70) { cycle = "Getting extended"; confidence = "50% trim"; }
+              else if (dRsi > 70 && wRsi > 70 && mRsi > 60) { cycle = "Late cycle"; confidence = "80% trim"; }
+              else if (dRsi > 80 && wRsi > 70) { cycle = "Top forming"; confidence = "90% trim"; }
+              else if (dRsi < 50 && wRsi > 50 && mRsi > 50) { cycle = "Cooling in uptrend"; confidence = "60% hold"; }
+              else if (dRsi > 50 && wRsi < 50) { cycle = "Bounce in downtrend"; confidence = "40% caution"; }
+              else { cycle = "Mixed signals"; confidence = "50% neutral"; }
+            }
+            const cycleText = dRsi && wRsi ? `D:${dRsi} W:${wRsi}${mRsi ? ` M:${mRsi}` : ""} — ${cycle} (${confidence})` : "";
+
+            return { sym, name, action, actionColor, reason, tags, isETF, cycleText };
           });
 
           // Auto-sync to coach todos
@@ -1603,16 +1621,21 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
           return (
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, color: C.accent, fontWeight: 700, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Daily Signals</div>
-              {[...mag6Signals, ...etfSignals].map(s => (
-                <div key={s.sym} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderBottom: `1px solid ${C.border}10`, fontSize: 13 }}>
-                  <span style={{ fontWeight: 700, color: s.actionColor, minWidth: 50 }}>{s.sym}</span>
-                  <span style={{ background: s.actionColor + "22", color: s.actionColor, padding: "1px 6px", borderRadius: 4, fontSize: 9, fontWeight: 700, minWidth: 55, textAlign: "center" }}>{s.action}</span>
-                  {s.tags.slice(0, 3).map(tag => (
-                    <span key={tag} style={{ background: C.card2, color: C.muted, padding: "0 5px", borderRadius: 4, fontSize: 9, fontWeight: 600 }}>{tag}</span>
-                  ))}
-                  <span style={{ color: C.text, flex: 1, fontSize: 12 }}>{s.reason}</span>
-                </div>
-              ))}
+              <div style={{ display: "grid", gridTemplateColumns: "55px 90px 50px 42px 42px 1fr", gap: "0", alignItems: "center" }}>
+                {[...mag6Signals, ...etfSignals].map(s => (
+                  <React.Fragment key={s.sym}>
+                    <span style={{ fontWeight: 700, color: s.actionColor, padding: "6px 0" }}>{s.sym}</span>
+                    <span style={{ justifySelf: "start" }}><span style={{ background: s.actionColor + "22", color: s.actionColor, padding: "1px 6px", borderRadius: 4, fontSize: 9, fontWeight: 700, display: "inline-block", textAlign: "center" }}>{s.action}</span></span>
+                    <span style={{ fontSize: 9, color: C.muted, background: C.card2, padding: "0 4px", borderRadius: 4, textAlign: "center", fontWeight: 600 }}>{s.tags[0] || ""}</span>
+                    <span style={{ fontSize: 9, color: C.muted, background: s.tags[1] ? C.card2 : "transparent", padding: "0 4px", borderRadius: 4, textAlign: "center", fontWeight: 600 }}>{s.tags[1] || ""}</span>
+                    <span style={{ fontSize: 9, color: C.muted, background: s.tags[2] ? C.card2 : "transparent", padding: "0 4px", borderRadius: 4, textAlign: "center", fontWeight: 600 }}>{s.tags[2] || ""}</span>
+                    <div style={{ padding: "6px 0", borderBottom: `1px solid ${C.border}10`, overflow: "hidden" }}>
+                      <span style={{ color: C.text, fontSize: 12 }}>{s.reason}</span>
+                      {s.cycleText && <div style={{ fontSize: 10, color: C.muted, marginTop: 1 }}>{s.cycleText}</div>}
+                    </div>
+                  </React.Fragment>
+                ))}
+              </div>
             </div>
           );
         })()}

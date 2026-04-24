@@ -559,9 +559,12 @@ app.get("/api/market/history", async (req, res) => {
     const period1 = new Date();
     period1.setFullYear(period1.getFullYear() - 1);
 
-    const [dailyResult, weeklyResult] = await Promise.all([
+    const period3y = new Date();
+    period3y.setFullYear(period3y.getFullYear() - 3);
+    const [dailyResult, weeklyResult, monthlyResult] = await Promise.all([
       yahooFinance.chart(symbol, { period1, interval: "1d" }),
       yahooFinance.chart(symbol, { period1, interval: "1wk" }).catch(() => null),
+      yahooFinance.chart(symbol, { period1: period3y, interval: "1mo" }).catch(() => null),
     ]);
 
     const quotes = dailyResult.quotes || [];
@@ -576,6 +579,11 @@ app.get("/api/market/history", async (req, res) => {
     const weeklyCloses = weeklyQuotes.map(q => q.close).filter(Boolean);
     const weeklyRsi14 = calcRSI(weeklyCloses, 14);
     const weeklyRsi14Prev = weeklyCloses.length > 15 ? calcRSI(weeklyCloses.slice(0, -1), 14) : null;
+
+    // Monthly candles + RSI
+    const monthlyQuotes = monthlyResult?.quotes || [];
+    const monthlyCloses = monthlyQuotes.map(q => q.close).filter(Boolean);
+    const monthlyRsi14 = calcRSI(monthlyCloses, 14);
 
     // Rolling RSI array for divergence detection
     const rollingRsi = [];
@@ -630,6 +638,7 @@ app.get("/api/market/history", async (req, res) => {
       rsi14Prev: dailyRsi14Prev ? +dailyRsi14Prev.toFixed(1) : null,
       weeklyRsi14: weeklyRsi14 ? +weeklyRsi14.toFixed(1) : null,
       weeklyRsi14Prev: weeklyRsi14Prev ? +weeklyRsi14Prev.toFixed(1) : null,
+      monthlyRsi14: monthlyRsi14 ? +monthlyRsi14.toFixed(1) : null,
       divergence,
       orderBlocks: weeklyOB,
       nearDemandBlock: nearDemand.length > 0 ? nearDemand[0] : null,
