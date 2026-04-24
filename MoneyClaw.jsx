@@ -995,12 +995,13 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
 
   let vixSentiment = null, vixColor = null, vixTake = null;
   if (vixLevel > 0) {
+    const _dcaAdvice = _ob6 >= 4 ? "Hold DCA" : _ob6 >= 2 ? "Small DCA only" : _os6 >= 3 ? "Add extra" : "Normal DCA";
     if (_score >= 4) { vixSentiment = "Risk-on"; vixColor = C.green;
-      vixTake = `Strong tape. VIX ${vixLevel.toFixed(0)}, momentum up. Deploy on schedule.${_breadthNote ? " " + _breadthNote : ""}`;
+      vixTake = `Strong tape. VIX ${vixLevel.toFixed(0)}, momentum up. ${_dcaAdvice}.${_breadthNote ? " " + _breadthNote : ""}`;
     } else if (_score >= 2) { vixSentiment = "Bullish bias"; vixColor = "#8ab864";
-      vixTake = `Leaning bullish. VIX ${vixLevel.toFixed(0)}, ${_qPct < 3 ? "near highs" : `${_qPct.toFixed(1)}% pullback`}. Normal DCA.${_breadthNote ? " " + _breadthNote : ""}`;
+      vixTake = `Leaning bullish. VIX ${vixLevel.toFixed(0)}, ${_qPct < 3 ? "near highs" : `${_qPct.toFixed(1)}% pullback`}. ${_dcaAdvice}.${_breadthNote ? " " + _breadthNote : ""}`;
     } else if (_score >= 0) { vixSentiment = "Mixed"; vixColor = "#A3B4C8";
-      vixTake = `No clear edge. VIX ${vixLevel.toFixed(0)}, RSI ${_rsi?.toFixed(0) || "?"}. Stick to base DCA, don't front-load.${_breadthNote ? " " + _breadthNote : ""}`;
+      vixTake = `No clear edge. VIX ${vixLevel.toFixed(0)}, RSI ${_rsi?.toFixed(0) || "?"}. ${_dcaAdvice}, don't front-load.${_breadthNote ? " " + _breadthNote : ""}`;
     } else if (_score >= -2) { vixSentiment = "Cautious"; vixColor = "#f59e0b";
       vixTake = `Defensive. VIX ${vixLevel.toFixed(0)}, momentum fading. Hold dry powder.${_breadthNote ? " " + _breadthNote : ""}`;
     } else if (_score >= -4) { vixSentiment = "Risk-off"; vixColor = C.orange;
