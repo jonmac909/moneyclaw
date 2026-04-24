@@ -1584,7 +1584,28 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
             }
             const cycleText = dRsi && wRsi ? `D:${dRsi} W:${wRsi}${mRsi ? ` M:${mRsi}` : ""} — ${cycle} (${confidence})` : "";
 
-            return { sym, name, action, actionColor, reason, tags, isETF, cycleText };
+            // Natural language analysis
+            let analysis = "";
+            const dWord = dRsi > 80 ? "overbought" : dRsi > 70 ? "hot" : dRsi > 60 ? "healthy" : dRsi > 50 ? "neutral" : dRsi > 40 ? "weak" : dRsi > 30 ? "oversold" : dRsi ? "deeply oversold" : "?";
+            const wWord = wRsi > 70 ? "overbought" : wRsi > 60 ? "strong" : wRsi > 50 ? "neutral" : wRsi > 40 ? "weak" : wRsi ? "oversold" : null;
+            const mWord = mRsi > 70 ? "overbought" : mRsi > 50 ? "bullish" : mRsi ? "bearish" : null;
+
+            if (pctDown >= 20 && dRsi && dRsi < 40) analysis = `${pctDown.toFixed(0)}% discount, oversold on daily — good entry window`;
+            else if (pctDown >= 20 && dRsi && dRsi < 50) analysis = `${pctDown.toFixed(0)}% discount, daily RSI recovering`;
+            else if (pctDown >= 10 && dRsi && dRsi < 50) analysis = `${pctDown.toFixed(0)}% off ATH, daily ${dWord}${wWord ? `, weekly ${wWord}` : ""}`;
+            else if (dRsi > 80) analysis = `Overbought on daily${wRsi > 70 ? " and weekly" : ""} — stretched`;
+            else if (dRsi > 70 && wRsi && wRsi > 70) analysis = `Hot on daily and weekly — extended across timeframes`;
+            else if (dRsi > 70 && rsiRising) analysis = `Daily ${dWord} but momentum up${wWord ? `, weekly ${wWord}` : ""}`;
+            else if (dRsi > 70) analysis = `Daily getting hot${wWord ? `, weekly ${wWord}` : ""}`;
+            else if (dRsi && dRsi < 30) analysis = `Deeply oversold on daily${wWord ? `, weekly ${wWord}` : ""} — watch for reversal`;
+            else if (dRsi && dRsi < 40 && rsiRising) analysis = `Oversold on daily, starting to reverse${wWord ? `. Weekly ${wWord}` : ""}`;
+            else if (dRsi && dRsi < 40) analysis = `Weak on daily${wWord ? `, weekly ${wWord}` : ""} — waiting for bottom`;
+            else if (rsiRising && pctDown < 3) analysis = `Near ATH, momentum up${wWord ? `. Weekly ${wWord}` : ""}`;
+            else if (rsiRising) analysis = `Trending up, daily ${dWord}${wWord ? `, weekly ${wWord}` : ""}`;
+            else if (!rsiRising && dRsi && dRsi < 50) analysis = `Cooling off, daily ${dWord}${wWord ? `, weekly ${wWord}` : ""}`;
+            else analysis = `Daily ${dWord}${wWord ? `, weekly ${wWord}` : ""}${mWord ? `, monthly ${mWord}` : ""}`;
+
+            return { sym, name, action, actionColor, reason, tags, isETF, analysis };
           });
 
           // Auto-sync to coach todos
@@ -1621,8 +1642,7 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
                     const boxColor = tag.includes("▲") ? C.green : tag.includes("▼") ? C.red : C.muted;
                     return <span key={ti} style={{ fontSize: 9, color: isBox ? boxColor : C.muted, background: isBox ? boxColor + "18" : C.card2, padding: "0 4px", borderRadius: 4, fontWeight: 600, whiteSpace: "nowrap", marginRight: 2 }}>{tag}</span>;
                   })}
-                  <span style={{ color: C.text, fontSize: 11, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.cycleText || s.reason}</span>
-                  {s.cycleText && <span style={{ fontSize: 9, color: C.muted, whiteSpace: "nowrap", flexShrink: 0, marginLeft: 6 }}>{s.reason}</span>}
+                  <span style={{ color: C.text, fontSize: 11, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.analysis}</span>
                 </div>
               ))}
             </div>
