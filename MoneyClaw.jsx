@@ -1532,7 +1532,7 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
 
             if (isETF && !isIBIT) {
               if (rsi > 80) { action = "OVERBOUGHT"; actionColor = C.red; reason = "Extreme, wait for pullback"; }
-              else if (rsi > 70) { action = "EXTENDED"; actionColor = C.orange; reason = "Hot, normal DCA only"; }
+              else if (rsi > 70) { action = "EXTENDED"; actionColor = C.orange; reason = "Hot — reduce DCA to 10%"; }
               else if (oversold && rsiRising) { action = "ADD MORE"; actionColor = C.green; reason = "Oversold, reversing"; }
               else if (pctDown >= 10) { action = "ADD MORE"; actionColor = C.green; reason = `${pctDown.toFixed(0)}% discount`; }
               else if (rsi >= 60 && rsiRising) { action = "ROOM TO RUN"; actionColor = "#8ab864"; reason = "Trending up"; }
