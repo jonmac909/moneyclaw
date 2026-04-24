@@ -1524,8 +1524,8 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
             if (rsi) tags.push(`D:${Math.round(rsi)}`);
             if (pctDown >= 5) tags.push(`-${pctDown.toFixed(0)}%`);
             if (pctDown < 2) tags.push("ATH");
-            if (nearDemand) tags.push("Buy Zone");
-            if (nearSupply) tags.push("Sell Zone");
+            if (nearDemand) tags.push("W Box ▲");
+            if (nearSupply) tags.push("W Box ▼");
             if (below200) tags.push("↓200");
             if (divergence === "bullish") tags.push("Bull Div");
             if (divergence === "bearish") tags.push("Bear Div");
@@ -1618,9 +1618,11 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
                 <div key={s.sym} style={{ display: "flex", alignItems: "center", gap: 0, padding: "4px 0", borderBottom: `1px solid ${C.border}10`, fontSize: 13 }}>
                   <span style={{ fontWeight: 700, color: s.actionColor, width: 52, flexShrink: 0, fontSize: 13 }}>{s.sym}</span>
                   <span style={{ width: 82, flexShrink: 0, textAlign: "center" }}><span style={{ background: s.actionColor + "22", color: s.actionColor, padding: "1px 5px", borderRadius: 4, fontSize: 9, fontWeight: 700 }}>{s.action}</span></span>
-                  <span style={{ width: 42, flexShrink: 0, textAlign: "center", fontSize: 9, color: C.muted, background: s.tags[0] ? C.card2 : "transparent", padding: "0 2px", borderRadius: 4, fontWeight: 600, marginRight: 2 }}>{s.tags[0] || ""}</span>
-                  <span style={{ width: 36, flexShrink: 0, textAlign: "center", fontSize: 9, color: C.muted, background: s.tags[1] ? C.card2 : "transparent", padding: "0 2px", borderRadius: 4, fontWeight: 600, marginRight: 2 }}>{s.tags[1] || ""}</span>
-                  <span style={{ width: 30, flexShrink: 0, textAlign: "center", fontSize: 9, color: C.muted, background: s.tags[2] ? C.card2 : "transparent", padding: "0 2px", borderRadius: 4, fontWeight: 600, marginRight: 6 }}>{s.tags[2] || ""}</span>
+                  {s.tags.slice(0, 3).map((tag, ti) => {
+                    const isBox = tag.includes("Box");
+                    const boxColor = tag.includes("▲") ? C.green : tag.includes("▼") ? C.red : C.muted;
+                    return <span key={ti} style={{ fontSize: 9, color: isBox ? boxColor : C.muted, background: isBox ? boxColor + "18" : C.card2, padding: "0 4px", borderRadius: 4, fontWeight: 600, whiteSpace: "nowrap", marginRight: 2 }}>{tag}</span>;
+                  })}
                   <span style={{ color: C.text, fontSize: 11, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.reason}</span>
                   {s.cycleText && <span style={{ fontSize: 9, color: C.muted, whiteSpace: "nowrap", flexShrink: 0, marginLeft: 6 }}>{s.cycleText}</span>}
                 </div>
