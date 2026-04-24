@@ -1551,7 +1551,7 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
               else if (nearSupply && gainPct > 0 && gainPct < 10) { action = "B/E"; actionColor = C.orange; reason = `At sell block, up ${gainPct.toFixed(1)}%`; }
               else if (overbought && gainPct > 0) {
                 action = "TRIM"; actionColor = C.red;
-                reason = `Overbought, up ${gainPct.toFixed(0)}%${divergence === "bearish" ? ", bearish div" : ""}`;
+                reason = `Trim ${trimPct}% ($${(trimAmt/1000).toFixed(1)}k) — up ${gainPct.toFixed(0)}%${divergence === "bearish" ? ", bearish div" : ""}`;
               }
               else if (overbought && gainPct <= 0 && (divergence === "bearish" || !above21 || nearSupply)) { action = "DO NOT ADD"; actionColor = C.orange; reason = "Overbought + underwater"; }
               else if (rsi > 80 && gainPct <= 0) { action = "OVERBOUGHT"; actionColor = C.red; reason = "Extreme RSI, underwater"; }
