@@ -677,7 +677,7 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
   /* ── Market data (fetch on mount) ── */
   const watchTickers = watchlistData?.tickers || [];
   const MAG7 = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA"];
-  const INDEXES = ["QQQ", "VOO"];
+  const INDEXES = ["QQQ", "VOO", "IBIT"];
   const allSymbols = [...new Set([...watchTickers.map(t => t.symbol), ...MAG7, ...INDEXES])];
   const [quotes, setQuotes] = useState({});
   const [technicals, setTechnicals] = useState({});
