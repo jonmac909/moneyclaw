@@ -1551,9 +1551,19 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
               if (af?.type === "sell") { action = "TRIM"; actionColor = C.red; reason = af.msg; }
               else if (af?.type === "buy" && af.score >= 5) { action = "BUY"; actionColor = C.green; reason = af.msg; }
               else if (nearSupply && gainPct > 0 && gainPct < 10) { action = "B/E"; actionColor = C.orange; reason = `At sell block, up ${gainPct.toFixed(1)}%`; }
-              else if (overbought && divergence === "bearish") { action = "DO NOT ADD"; actionColor = C.orange; reason = "Overbought + bearish divergence"; }
-              else if (overbought && !above21) { action = "DO NOT ADD"; actionColor = C.orange; reason = "Overbought, lost 21 EMA"; }
-              else if (rsi > 80) { action = "OVERBOUGHT"; actionColor = C.red; reason = `RSI ${Math.round(rsi)}, extreme`; }
+              else if (overbought && gainPct > 0) {
+                const hv = holdingValue || 0;
+                let trimPct = 25;
+                if (rsi > 80) trimPct = 50;
+                if (divergence === "bearish") trimPct = Math.min(trimPct + 25, 75);
+                if (nearSupply) trimPct = Math.min(trimPct + 25, 75);
+                if (!above21) trimPct = Math.min(trimPct + 25, 100);
+                const trimAmt = hv * (trimPct / 100);
+                action = "TRIM"; actionColor = C.red;
+                reason = `RSI ${Math.round(rsi)}, up ${gainPct.toFixed(0)}% — sell ${trimPct}% ($${(trimAmt/1000).toFixed(1)}k)`;
+              }
+              else if (overbought && gainPct <= 0 && (divergence === "bearish" || !above21 || nearSupply)) { action = "DO NOT ADD"; actionColor = C.orange; reason = `RSI ${Math.round(rsi)}, underwater — wait for pullback`; }
+              else if (rsi > 80 && gainPct <= 0) { action = "OVERBOUGHT"; actionColor = C.red; reason = `RSI ${Math.round(rsi)}, extreme — don't touch`; }
               else if (rsi > 70 && rsiRising) { action = "EXTENDED"; actionColor = C.orange; reason = `RSI ${Math.round(rsi)}, hot but momentum up`; }
               else if (rsi > 70) { action = "EXTENDED"; actionColor = C.orange; reason = `RSI ${Math.round(rsi)}, getting stretched`; }
               else if (oversold && rsiRising) { action = "BUY"; actionColor = C.green; reason = "RSI reversing from oversold"; }
@@ -1747,8 +1757,16 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
             if (af?.type === "sell") { action = "TRIM"; actionColor = C.red; }
             else if (af?.type === "buy" && af.score >= 5) { action = "BUY"; actionColor = C.green; }
             else if (nearSupply && gainLoss > 0 && gainLoss < 10) { action = "B/E"; actionColor = C.orange; }
-            else if (overbought && divergence === "bearish") { action = "DO NOT ADD"; actionColor = C.orange; }
-            else if (rsi > 80) { action = "OVERBOUGHT"; actionColor = C.red; }
+            else if (overbought && gainLoss > 0) {
+              let tp = 25;
+              if (rsi > 80) tp = 50;
+              if (divergence === "bearish") tp = Math.min(tp + 25, 75);
+              if (nearSupply) tp = Math.min(tp + 25, 75);
+              if (!above21) tp = Math.min(tp + 25, 100);
+              action = `TRIM ${tp}%`; actionColor = C.red;
+            }
+            else if (overbought && gainLoss <= 0 && (divergence === "bearish" || !above21 || nearSupply)) { action = "DO NOT ADD"; actionColor = C.orange; }
+            else if (rsi > 80 && gainLoss <= 0) { action = "OVERBOUGHT"; actionColor = C.red; }
             else if (rsi > 70 && rsiRising) { action = "EXTENDED"; actionColor = C.orange; }
             else if (rsi > 70) { action = "EXTENDED"; actionColor = C.orange; }
             else if (oversold && rsiRising) { action = "BUY"; actionColor = C.green; }
