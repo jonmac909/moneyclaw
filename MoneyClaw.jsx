@@ -1622,14 +1622,14 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, color: C.accent, fontWeight: 700, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Daily Signals</div>
               {[...mag6Signals, ...etfSignals].map(s => (
-                <div key={s.sym} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 0", borderBottom: `1px solid ${C.border}10`, fontSize: 13 }}>
-                  <span style={{ fontWeight: 700, color: s.actionColor, minWidth: 44, fontSize: 13 }}>{s.sym}</span>
-                  <span style={{ background: s.actionColor + "22", color: s.actionColor, padding: "1px 5px", borderRadius: 4, fontSize: 9, fontWeight: 700, whiteSpace: "nowrap" }}>{s.action}</span>
-                  {s.tags.slice(0, 3).map(tag => (
-                    <span key={tag} style={{ background: C.card2, color: C.muted, padding: "0 4px", borderRadius: 4, fontSize: 9, fontWeight: 600, whiteSpace: "nowrap" }}>{tag}</span>
-                  ))}
-                  <span style={{ color: C.text, fontSize: 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.reason}</span>
-                  {s.cycleText && <span style={{ fontSize: 9, color: C.muted, whiteSpace: "nowrap", marginLeft: "auto" }}>{s.cycleText}</span>}
+                <div key={s.sym} style={{ display: "flex", alignItems: "center", gap: 0, padding: "4px 0", borderBottom: `1px solid ${C.border}10`, fontSize: 13 }}>
+                  <span style={{ fontWeight: 700, color: s.actionColor, width: 52, flexShrink: 0, fontSize: 13 }}>{s.sym}</span>
+                  <span style={{ width: 82, flexShrink: 0, textAlign: "center" }}><span style={{ background: s.actionColor + "22", color: s.actionColor, padding: "1px 5px", borderRadius: 4, fontSize: 9, fontWeight: 700 }}>{s.action}</span></span>
+                  <span style={{ width: 42, flexShrink: 0, textAlign: "center", fontSize: 9, color: C.muted, background: s.tags[0] ? C.card2 : "transparent", padding: "0 2px", borderRadius: 4, fontWeight: 600, marginRight: 2 }}>{s.tags[0] || ""}</span>
+                  <span style={{ width: 36, flexShrink: 0, textAlign: "center", fontSize: 9, color: C.muted, background: s.tags[1] ? C.card2 : "transparent", padding: "0 2px", borderRadius: 4, fontWeight: 600, marginRight: 2 }}>{s.tags[1] || ""}</span>
+                  <span style={{ width: 30, flexShrink: 0, textAlign: "center", fontSize: 9, color: C.muted, background: s.tags[2] ? C.card2 : "transparent", padding: "0 2px", borderRadius: 4, fontWeight: 600, marginRight: 6 }}>{s.tags[2] || ""}</span>
+                  <span style={{ color: C.text, fontSize: 11, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.reason}</span>
+                  {s.cycleText && <span style={{ fontSize: 9, color: C.muted, whiteSpace: "nowrap", flexShrink: 0, marginLeft: 6 }}>{s.cycleText}</span>}
                 </div>
               ))}
             </div>
