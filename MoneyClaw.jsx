@@ -1703,13 +1703,51 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
           if (gainLoss != null && gainLoss < -10) tags.push("Underwater");
           if (gainLoss != null && gainLoss > 20) tags.push("Winner");
 
+          // Action pill
+          const rsi = tech.rsi14;
+          const rsiPrev = tech.rsi14Prev;
+          const rsiRising = rsi && rsiPrev && rsi > rsiPrev;
+          const overbought = rsi && rsi > 70;
+          const oversold = rsi && rsi < 40;
+          const below200 = tech.ema200 && q.price < tech.ema200;
+          const above21 = tech.ema21 && q.price > tech.ema21;
+          const nearDemand = tech.nearDemandBlock;
+          const nearSupply = tech.nearSupplyBlock;
+          const divergence = tech.divergence;
+          const isETF = ["VOO", "QQQ", "IBIT"].includes(sym);
+          const isIBIT = sym === "IBIT";
+          const holdingValue = h ? h.totalQty * q.price : 0;
+
+          let action, actionColor;
+          if (isETF && !isIBIT) {
+            if (overbought && rsi > 80) { action = "WAIT"; actionColor = C.orange; }
+            else if (oversold && rsiRising) { action = "ADD MORE"; actionColor = C.green; }
+            else if (q.pctDown >= 10) { action = "ADD MORE"; actionColor = C.green; }
+            else { action = "DCA"; actionColor = C.muted; }
+          } else if (isIBIT) {
+            if (overbought && divergence === "bearish" && nearSupply) { action = "TRIM"; actionColor = C.red; }
+            else if (oversold && rsiRising) { action = "ADD MORE"; actionColor = C.green; }
+            else if (q.pctDown >= 15) { action = "ADD MORE"; actionColor = C.green; }
+            else { action = "HOLD"; actionColor = C.muted; }
+          } else {
+            const af = actionFeed.find(a => a.sym === sym);
+            if (af?.type === "sell") { action = "TRIM"; actionColor = C.red; }
+            else if (af?.type === "buy" && af.score >= 5) { action = "BUY"; actionColor = C.green; }
+            else if (nearSupply && gainLoss > 0 && gainLoss < 10) { action = "B/E"; actionColor = C.orange; }
+            else if (overbought && divergence === "bearish") { action = "DO NOT ADD"; actionColor = C.orange; }
+            else if (oversold && rsiRising) { action = "BUY"; actionColor = C.green; }
+            else if (q.pctDown >= 10 && !overbought) { action = "WATCH"; actionColor = "#8ab864"; }
+            else if (below200) { action = "WAIT"; actionColor = C.orange; }
+            else { action = "HOLD"; actionColor = C.muted; }
+          }
+
           // Summary message
           const parts = [];
           if (q.price) parts.push(`$${q.price.toFixed(2)}`);
           if (q.pctDown != null) parts.push(`${q.pctDown.toFixed(1)}% off ATH`);
           if (gainLoss != null) parts.push(`${gainLoss >= 0 ? "+" : ""}${gainLoss.toFixed(1)}% vs cost`);
 
-          return { sym, name, daily, pctDown: q.pctDown, gainLoss, tags, msg: parts.join(" · "), score: Math.abs(daily) * 2 + tags.length * 3 };
+          return { sym, name, daily, pctDown: q.pctDown, gainLoss, tags, msg: parts.join(" · "), score: Math.abs(daily) * 2 + tags.length * 3, action, actionColor };
         }).sort((a, b) => b.score - a.score);
         return (
           <div style={{ ...s.card, marginBottom: 20 }}>
@@ -1725,6 +1763,7 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
                 <span style={{ color: r.daily >= 0 ? C.green : C.red, fontWeight: 600, fontSize: 11, minWidth: 50 }}>
                   {r.daily >= 0 ? "+" : ""}{r.daily.toFixed(1)}%
                 </span>
+                <span style={{ background: r.actionColor + "22", color: r.actionColor, padding: "1px 6px", borderRadius: 4, fontSize: 9, fontWeight: 700, minWidth: 55, textAlign: "center" }}>{r.action}</span>
                 {r.tags.map(tag => (
                   <span key={tag} style={{
                     background: ["Big Day","Winner","Near ATH","Recovering","Up"].includes(tag) ? C.green + "18" :
