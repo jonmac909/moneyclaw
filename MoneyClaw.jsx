@@ -1547,8 +1547,8 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
             } else {
               // Mag 6 stocks
               const af = actionFeed.find(a => a.sym === sym);
-              if (af?.type === "sell") { action = "TRIM"; actionColor = C.red; reason = af.msg; }
-              else if (af?.type === "buy" && af.score >= 5) { action = "BUY"; actionColor = C.green; reason = af.msg; }
+              if (af?.type === "sell") { action = "TRIM"; actionColor = C.red; reason = `Up ${gainPct.toFixed(0)}%, overbought`; }
+              else if (af?.type === "buy" && af.score >= 5) { action = "BUY"; actionColor = C.green; reason = `${pctDown.toFixed(0)}% off ATH${nearDemand ? ", at order block" : ""}`; }
               else if (nearSupply && gainPct > 0 && gainPct < 10) { action = "B/E"; actionColor = C.orange; reason = `At sell block, up ${gainPct.toFixed(1)}%`; }
               else if (overbought && gainPct > 0) {
                 const hv = holdingValue || 0;
@@ -1559,7 +1559,7 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
                 if (!above21) trimPct = Math.min(trimPct + 25, 100);
                 const trimAmt = hv * (trimPct / 100);
                 action = "TRIM"; actionColor = C.red;
-                reason = `Trim ${trimPct}% ($${(trimAmt/1000).toFixed(1)}k) — up ${gainPct.toFixed(0)}%${divergence === "bearish" ? ", bearish div" : ""}`;
+                reason = `Up ${gainPct.toFixed(0)}%, overbought${divergence === "bearish" ? ", divergence" : ""}`;
               }
               else if (overbought && gainPct <= 0 && (divergence === "bearish" || !above21 || nearSupply)) { action = "DO NOT ADD"; actionColor = C.orange; reason = "Overbought + underwater"; }
               else if (rsi > 80 && gainPct <= 0) { action = "OVERBOUGHT"; actionColor = C.red; reason = "Extreme RSI, underwater"; }
