@@ -1453,7 +1453,11 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
                         {e.forecast && <span style={{ fontSize: 9, color: C.muted }}>fcst {e.forecast}</span>}
                       </span>
                     ) : isPast ? (
-                      <span style={{ fontSize: 9, color: C.muted, fontStyle: "italic" }}>released</span>
+                      <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        {e.forecast && <span style={{ fontSize: 11, color: C.muted }}>Fcst: {e.forecast}</span>}
+                        {e.previous && <span style={{ fontSize: 11, color: C.muted }}>Prev: {e.previous}</span>}
+                        <span style={{ fontSize: 9, color: C.muted, fontStyle: "italic" }}>awaiting data</span>
+                      </span>
                     ) : (
                       <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         {e.forecast && <span style={{ fontSize: 11, color: C.muted }}>Fcst: {e.forecast}</span>}
@@ -1493,6 +1497,7 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
 
         {/* Auto-sync coach signals — replaces stale coach todos with current signals */}
         {(() => {
+          if (Object.keys(quotes).length === 0) return null;
           const coachMsgs = [];
           const vixP = vix.price || 0;
           if (vixP >= 25) coachMsgs.push("DCA extra into ETFs — VIX is elevated (fear = opportunity)");
