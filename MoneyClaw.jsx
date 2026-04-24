@@ -1539,10 +1539,12 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
               else { action = "DCA"; actionColor = C.muted; reason = "On schedule"; }
             } else if (isIBIT) {
               if (overbought && divergence === "bearish" && nearSupply) { action = "TRIM"; actionColor = C.red; reason = "Sell block + bearish div + overbought"; }
-              else if (overbought && rsi > 80) { action = "WAIT"; actionColor = C.orange; reason = "RSI extreme, don't add"; }
+              else if (rsi > 80) { action = "OVERBOUGHT"; actionColor = C.red; reason = `RSI ${Math.round(rsi)}, extreme — don't add`; }
+              else if (rsi > 70) { action = "EXTENDED"; actionColor = C.orange; reason = `RSI ${Math.round(rsi)}, hot but has momentum`; }
               else if (oversold && rsiRising) { action = "ADD MORE"; actionColor = C.green; reason = "RSI reversing from oversold"; }
               else if (pctDown >= 15) { action = "ADD MORE"; actionColor = C.green; reason = `${pctDown.toFixed(0)}% off ATH`; }
-              else { action = "HOLD"; actionColor = C.muted; reason = "No signal"; }
+              else if (rsi >= 60 && rsiRising) { action = "ROOM TO RUN"; actionColor = "#8ab864"; reason = `RSI ${Math.round(rsi)}, trending up`; }
+              else { action = "HOLD"; actionColor = C.muted; reason = `RSI ${rsi ? Math.round(rsi) : "?"}, neutral`; }
             } else {
               // Mag 6 stocks
               const af = actionFeed.find(a => a.sym === sym);
@@ -1551,17 +1553,23 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
               else if (nearSupply && gainPct > 0 && gainPct < 10) { action = "B/E"; actionColor = C.orange; reason = `At sell block, up ${gainPct.toFixed(1)}%`; }
               else if (overbought && divergence === "bearish") { action = "DO NOT ADD"; actionColor = C.orange; reason = "Overbought + bearish divergence"; }
               else if (overbought && !above21) { action = "DO NOT ADD"; actionColor = C.orange; reason = "Overbought, lost 21 EMA"; }
+              else if (rsi > 80) { action = "OVERBOUGHT"; actionColor = C.red; reason = `RSI ${Math.round(rsi)}, extreme`; }
+              else if (rsi > 70 && rsiRising) { action = "EXTENDED"; actionColor = C.orange; reason = `RSI ${Math.round(rsi)}, hot but momentum up`; }
+              else if (rsi > 70) { action = "EXTENDED"; actionColor = C.orange; reason = `RSI ${Math.round(rsi)}, getting stretched`; }
               else if (oversold && rsiRising) { action = "BUY"; actionColor = C.green; reason = "RSI reversing from oversold"; }
               else if (pctDown >= 10 && !overbought) { action = "WATCH"; actionColor = "#8ab864"; reason = `${pctDown.toFixed(0)}% off ATH, watching`; }
               else if (below200) { action = "WAIT"; actionColor = C.orange; reason = "Below 200 EMA"; }
               else if (gainPct > 30 && nearSupply) { action = "TRIM"; actionColor = C.red; reason = `Up ${gainPct.toFixed(0)}% at sell block`; }
-              else { action = "HOLD"; actionColor = C.muted; reason = "No signal"; }
+              else if (rsi >= 60 && rsiRising && pctDown < 5) { action = "ROOM TO RUN"; actionColor = "#8ab864"; reason = `RSI ${Math.round(rsi)}, near ATH, momentum up`; }
+              else if (rsi >= 50 && rsiRising) { action = "ROOM TO RUN"; actionColor = "#8ab864"; reason = `RSI ${Math.round(rsi)}, trending up`; }
+              else if (rsi && rsi < 50 && !rsiRising) { action = "COOLING"; actionColor = C.muted; reason = `RSI ${Math.round(rsi)}, momentum slowing`; }
+              else { action = "HOLD"; actionColor = C.muted; reason = `RSI ${rsi ? Math.round(rsi) : "?"}, neutral`; }
             }
             return { sym, name, action, actionColor, reason, tags, isETF };
           });
 
           // Auto-sync to coach todos
-          const coachMsgs = signals.filter(s => s.action !== "HOLD" && s.action !== "DCA").map(s => `${s.sym}: ${s.action} — ${s.reason}`);
+          const coachMsgs = signals.filter(s => !["HOLD", "DCA", "ROOM TO RUN", "COOLING"].includes(s.action)).map(s => `${s.sym}: ${s.action} — ${s.reason}`);
           const vixP = vix.price || 0;
           if (vixP >= 25) coachMsgs.unshift("DCA extra into ETFs — VIX elevated");
           if (vixP >= 30) coachMsgs.unshift("Deploy extra cash — market panic");
@@ -1720,14 +1728,19 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
 
           let action, actionColor;
           if (isETF && !isIBIT) {
-            if (overbought && rsi > 80) { action = "WAIT"; actionColor = C.orange; }
+            if (rsi > 80) { action = "OVERBOUGHT"; actionColor = C.red; }
+            else if (rsi > 70) { action = "EXTENDED"; actionColor = C.orange; }
             else if (oversold && rsiRising) { action = "ADD MORE"; actionColor = C.green; }
             else if (q.pctDown >= 10) { action = "ADD MORE"; actionColor = C.green; }
+            else if (rsi >= 60 && rsiRising) { action = "ROOM TO RUN"; actionColor = "#8ab864"; }
             else { action = "DCA"; actionColor = C.muted; }
           } else if (isIBIT) {
             if (overbought && divergence === "bearish" && nearSupply) { action = "TRIM"; actionColor = C.red; }
+            else if (rsi > 80) { action = "OVERBOUGHT"; actionColor = C.red; }
+            else if (rsi > 70) { action = "EXTENDED"; actionColor = C.orange; }
             else if (oversold && rsiRising) { action = "ADD MORE"; actionColor = C.green; }
             else if (q.pctDown >= 15) { action = "ADD MORE"; actionColor = C.green; }
+            else if (rsi >= 60 && rsiRising) { action = "ROOM TO RUN"; actionColor = "#8ab864"; }
             else { action = "HOLD"; actionColor = C.muted; }
           } else {
             const af = actionFeed.find(a => a.sym === sym);
@@ -1735,9 +1748,15 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
             else if (af?.type === "buy" && af.score >= 5) { action = "BUY"; actionColor = C.green; }
             else if (nearSupply && gainLoss > 0 && gainLoss < 10) { action = "B/E"; actionColor = C.orange; }
             else if (overbought && divergence === "bearish") { action = "DO NOT ADD"; actionColor = C.orange; }
+            else if (rsi > 80) { action = "OVERBOUGHT"; actionColor = C.red; }
+            else if (rsi > 70 && rsiRising) { action = "EXTENDED"; actionColor = C.orange; }
+            else if (rsi > 70) { action = "EXTENDED"; actionColor = C.orange; }
             else if (oversold && rsiRising) { action = "BUY"; actionColor = C.green; }
             else if (q.pctDown >= 10 && !overbought) { action = "WATCH"; actionColor = "#8ab864"; }
             else if (below200) { action = "WAIT"; actionColor = C.orange; }
+            else if (rsi >= 60 && rsiRising && q.pctDown < 5) { action = "ROOM TO RUN"; actionColor = "#8ab864"; }
+            else if (rsi >= 50 && rsiRising) { action = "ROOM TO RUN"; actionColor = "#8ab864"; }
+            else if (rsi && rsi < 50 && !rsiRising) { action = "COOLING"; actionColor = C.muted; }
             else { action = "HOLD"; actionColor = C.muted; }
           }
 
