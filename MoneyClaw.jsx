@@ -1584,6 +1584,15 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
             }
             const cycleText = dRsi && wRsi ? `D:${dRsi} W:${wRsi}${mRsi ? ` M:${mRsi}` : ""} — ${cycle} (${confidence})` : "";
 
+            // Macro risk from QQQ + news
+            const qqqRsi = technicals["QQQ"]?.rsi14;
+            const qqqDown = quotes["QQQ"]?.pctDown || 0;
+            const BEARISH_NEWS_KW = /tariff|recession|layoff|downgrade|crash|selloff|rate hike|hawkish|bank fail|default|war|sanction|debt ceiling|shutdown/i;
+            const bearishNews = news.filter(n => BEARISH_NEWS_KW.test(n.title));
+            const macroRisk = (qqqRsi && qqqRsi > 75 ? " Caution: QQQ overbought." : "") +
+              (qqqDown >= 10 ? " QQQ in correction territory." : "") +
+              (bearishNews.length >= 2 ? ` Macro risk: ${bearishNews[0]?.title?.slice(0, 40)}...` : "");
+
             // Natural language analysis
             let analysis = "";
             const dWord = dRsi > 80 ? "overbought" : dRsi > 70 ? "hot" : dRsi > 60 ? "healthy" : dRsi > 50 ? "neutral" : dRsi > 40 ? "weak" : dRsi > 30 ? "oversold" : dRsi ? "deeply oversold" : "?";
@@ -1612,6 +1621,8 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
             else if (!rsiRising && dRsi && dRsi < 50) analysis = `Losing steam. Could dip further — wait for support before adding.`;
             else if (!rsiRising && dRsi && dRsi >= 50) analysis = `Consolidating. No edge either way — stick to your plan.`;
             else analysis = `No strong signal. Sit tight.`;
+
+            if (macroRisk) analysis += macroRisk;
 
             return { sym, name, action, actionColor, reason, tags, isETF, analysis };
           });
