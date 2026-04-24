@@ -1496,6 +1496,15 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
           <button style={s.btnSm} onClick={() => addTodo(newTodo)}>Add</button>
         </div>
 
+        {todos.filter(t => !t.done).map(t => (
+          <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", borderBottom: `1px solid ${C.border}15` }}>
+            <input type="checkbox" checked={false} onChange={() => toggleTodo(t.id)} style={{ cursor: "pointer", accentColor: C.accent }} />
+            <span style={{ flex: 1, fontSize: 13, color: C.text }}>{t.text}</span>
+            {t.source === "coach" && <span style={{ fontSize: 9, color: C.accent, background: C.accent + "18", padding: "1px 5px", borderRadius: 5 }}>coach</span>}
+            <button onClick={() => removeTodo(t.id)} style={{ ...s.btnDanger, padding: "2px 6px", fontSize: 9 }}>✕</button>
+          </div>
+        ))}
+
         {/* ── Daily Signal Dashboard — all 9 positions ── */}
         {Object.keys(quotes).length > 0 && (() => {
           const TRACKED = [...MAG7, "VOO", "QQQ", "IBIT"];
@@ -1571,7 +1580,7 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
               else if (rsi > 70 && rsiRising) { action = "EXTENDED"; actionColor = C.orange; reason = `Hot but momentum still up.${divNote}${macdNote}`; }
               else if (rsi > 70) { action = "EXTENDED"; actionColor = C.orange; reason = `Getting stretched.${divNote}${macdNote}`; }
               else if (oversold && rsiRising) { action = "BUY"; actionColor = C.green; reason = `Reversing from oversold.${divNote}${macdNote}`; }
-              else if (pctDown >= 10 && !overbought) { action = "WATCH"; actionColor = "#8ab864"; reason = `${pctDown.toFixed(0)}% discount.${divNote}${macdNote}${ema200Note}`; }
+              else if (pctDown >= 10 && !overbought) { action = "WATCH"; actionColor = "#8ab864"; reason = `${pctDown.toFixed(0)}% discount, waiting for confluence.${divNote}${macdNote}${ema200Note}`; }
               else if (below200) { action = "WAIT"; actionColor = C.orange; reason = `Below 200 EMA.${divNote}${macdNote}`; }
               else if (gainPct > 30 && overbought) { action = "TRIM"; actionColor = C.red; reason = `Up ${gainPct.toFixed(0)}%, overbought.${divNote}`; }
               else if (rsi >= 60 && rsiRising && pctDown < 5) { action = "ROOM TO RUN"; actionColor = "#8ab864"; reason = `Near ATH, momentum up.${divNote}${macdNote}`; }
@@ -1625,7 +1634,7 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
           const mag6Signals = signals.filter(s => !s.isETF);
           const etfSignals = signals.filter(s => s.isETF);
           return (
-            <div style={{ marginBottom: 12 }}>
+            <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${C.border}20`, marginBottom: 12 }}>
               <div style={{ fontSize: 11, color: C.accent, fontWeight: 700, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Daily Signals</div>
               {[...mag6Signals, ...etfSignals].map(s => (
                 <div key={s.sym} style={{ display: "flex", alignItems: "center", gap: 0, padding: "4px 0", borderBottom: `1px solid ${C.border}10`, fontSize: 13 }}>
@@ -1646,14 +1655,6 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
           );
         })()}
 
-        {todos.filter(t => !t.done).map(t => (
-          <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", borderBottom: `1px solid ${C.border}15` }}>
-            <input type="checkbox" checked={false} onChange={() => toggleTodo(t.id)} style={{ cursor: "pointer", accentColor: C.accent }} />
-            <span style={{ flex: 1, fontSize: 13, color: C.text }}>{t.text}</span>
-            {t.source === "coach" && <span style={{ fontSize: 9, color: C.accent, background: C.accent + "18", padding: "1px 5px", borderRadius: 5 }}>coach</span>}
-            <button onClick={() => removeTodo(t.id)} style={{ ...s.btnDanger, padding: "2px 6px", fontSize: 9 }}>✕</button>
-          </div>
-        ))}
         {todos.filter(t => t.done).length > 0 && (
           <div style={{ marginTop: 12 }}>
             <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>Completed</div>
