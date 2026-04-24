@@ -1584,14 +1584,9 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
             }
             const cycleText = dRsi && wRsi ? `D:${dRsi} W:${wRsi}${mRsi ? ` M:${mRsi}` : ""} — ${cycle} (${confidence})` : "";
 
-            // Macro risk from QQQ + news
+            // QQQ technical risk
             const qqqRsi = technicals["QQQ"]?.rsi14;
-            const qqqDown = quotes["QQQ"]?.pctDown || 0;
-            const BEARISH_NEWS_KW = /tariff|recession|layoff|downgrade|crash|selloff|rate hike|hawkish|bank fail|default|war|sanction|debt ceiling|shutdown/i;
-            const bearishNews = news.filter(n => n.title && BEARISH_NEWS_KW.test(n.title));
-            const macroRisk = (qqqRsi && qqqRsi > 75 ? " Caution: QQQ overbought." : "") +
-              (qqqDown >= 10 ? " QQQ in correction territory." : "") +
-              (bearishNews.length >= 2 ? ` Macro risk: ${bearishNews[0]?.title?.slice(0, 40)}...` : "");
+            const macroRisk = qqqRsi && qqqRsi > 75 ? " QQQ overbought — ease off tech." : "";
 
             // Natural language analysis
             let analysis = "";
