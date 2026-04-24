@@ -1508,6 +1508,7 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
             const overbought = rsi && rsi > 70;
             const oversold = rsi && rsi < 40;
             const below200 = tech.ema200 && q.price < tech.ema200;
+            const above8ema = tech.ema8 && q.price > tech.ema8;
             const above21 = tech.ema21 && q.price > tech.ema21;
             const nearDemand = tech.nearDemandBlock;
             const nearSupply = tech.nearSupplyBlock;
