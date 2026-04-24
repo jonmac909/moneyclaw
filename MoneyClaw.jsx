@@ -1495,16 +1495,76 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
           <button style={s.btnSm} onClick={() => addTodo(newTodo)}>Add</button>
         </div>
 
-        {/* Auto-sync coach signals — replaces stale coach todos with current signals */}
-        {(() => {
-          if (Object.keys(quotes).length === 0) return null;
-          const coachMsgs = [];
+        {/* ── Daily Signal Dashboard — all 9 positions ── */}
+        {Object.keys(quotes).length > 0 && (() => {
+          const TRACKED = [...MAG7, "VOO", "QQQ", "IBIT"];
+          const signals = TRACKED.map(sym => {
+            const q = quotes[sym] || {};
+            const tech = technicals[sym] || {};
+            const h = holdingsMap[sym];
+            const rsi = tech.rsi14;
+            const rsiPrev = tech.rsi14Prev;
+            const rsiRising = rsi && rsiPrev && rsi > rsiPrev;
+            const overbought = rsi && rsi > 70;
+            const oversold = rsi && rsi < 40;
+            const below200 = tech.ema200 && q.price < tech.ema200;
+            const above21 = tech.ema21 && q.price > tech.ema21;
+            const nearDemand = tech.nearDemandBlock;
+            const nearSupply = tech.nearSupplyBlock;
+            const divergence = tech.divergence;
+            const pctDown = q.pctDown || 0;
+            const holdingValue = h ? h.totalQty * q.price : 0;
+            const gainPct = h && h.avgCost > 0 ? ((q.price - h.avgCost) / h.avgCost) * 100 : 0;
+            const isETF = ["VOO", "QQQ", "IBIT"].includes(sym);
+            const isIBIT = sym === "IBIT";
+            const name = q.shortName || sym;
+
+            let action, actionColor, reason;
+            const tags = [];
+            if (rsi) tags.push(`RSI ${Math.round(rsi)}`);
+            if (pctDown >= 5) tags.push(`-${pctDown.toFixed(0)}%`);
+            if (pctDown < 2) tags.push("ATH");
+            if (nearDemand) tags.push("OB");
+            if (nearSupply) tags.push("SB");
+            if (below200) tags.push("↓200");
+            if (divergence === "bullish") tags.push("Bull Div");
+            if (divergence === "bearish") tags.push("Bear Div");
+
+            if (isETF && !isIBIT) {
+              // VOO / QQQ — never sell, just DCA guidance
+              if (overbought && rsi > 80) { action = "WAIT"; actionColor = C.orange; reason = "RSI extreme, wait for pullback to add"; }
+              else if (overbought) { action = "HOLD"; actionColor = C.muted; reason = "RSI high, normal DCA only"; }
+              else if (oversold && rsiRising) { action = "ADD MORE"; actionColor = C.green; reason = "RSI oversold + reversing"; }
+              else if (pctDown >= 10) { action = "ADD MORE"; actionColor = C.green; reason = `${pctDown.toFixed(0)}% off ATH, good discount`; }
+              else { action = "DCA"; actionColor = C.muted; reason = "On schedule"; }
+            } else if (isIBIT) {
+              if (overbought && divergence === "bearish" && nearSupply) { action = "TRIM"; actionColor = C.red; reason = "Sell block + bearish div + overbought"; }
+              else if (overbought && rsi > 80) { action = "WAIT"; actionColor = C.orange; reason = "RSI extreme, don't add"; }
+              else if (oversold && rsiRising) { action = "ADD MORE"; actionColor = C.green; reason = "RSI reversing from oversold"; }
+              else if (pctDown >= 15) { action = "ADD MORE"; actionColor = C.green; reason = `${pctDown.toFixed(0)}% off ATH`; }
+              else { action = "HOLD"; actionColor = C.muted; reason = "No signal"; }
+            } else {
+              // Mag 6 stocks
+              const af = actionFeed.find(a => a.sym === sym);
+              if (af?.type === "sell") { action = "TRIM"; actionColor = C.red; reason = af.msg; }
+              else if (af?.type === "buy" && af.score >= 5) { action = "BUY"; actionColor = C.green; reason = af.msg; }
+              else if (nearSupply && gainPct > 0 && gainPct < 10) { action = "B/E"; actionColor = C.orange; reason = `At sell block, up ${gainPct.toFixed(1)}%`; }
+              else if (overbought && divergence === "bearish") { action = "DO NOT ADD"; actionColor = C.orange; reason = "Overbought + bearish divergence"; }
+              else if (overbought && !above21) { action = "DO NOT ADD"; actionColor = C.orange; reason = "Overbought, lost 21 EMA"; }
+              else if (oversold && rsiRising) { action = "BUY"; actionColor = C.green; reason = "RSI reversing from oversold"; }
+              else if (pctDown >= 10 && !overbought) { action = "WATCH"; actionColor = "#8ab864"; reason = `${pctDown.toFixed(0)}% off ATH, watching`; }
+              else if (below200) { action = "WAIT"; actionColor = C.orange; reason = "Below 200 EMA"; }
+              else if (gainPct > 30 && nearSupply) { action = "TRIM"; actionColor = C.red; reason = `Up ${gainPct.toFixed(0)}% at sell block`; }
+              else { action = "HOLD"; actionColor = C.muted; reason = "No signal"; }
+            }
+            return { sym, name, action, actionColor, reason, tags, isETF };
+          });
+
+          // Auto-sync to coach todos
+          const coachMsgs = signals.filter(s => s.action !== "HOLD" && s.action !== "DCA").map(s => `${s.sym}: ${s.action} — ${s.reason}`);
           const vixP = vix.price || 0;
-          if (vixP >= 25) coachMsgs.push("DCA extra into ETFs — VIX is elevated (fear = opportunity)");
-          if (vixP >= 30) coachMsgs.push("Deploy extra cash tranche — market panic, historically great entry");
-          actionFeed.filter(a => a.type === "buy" && a.score >= 5).slice(0, 3).forEach(a => coachMsgs.push(`${a.sym}: ${a.msg}`));
-          actionFeed.filter(a => a.type === "sell").slice(0, 3).forEach(a => coachMsgs.push(`${a.sym}: ${a.msg}`));
-          actionFeed.filter(a => a.type === "caution" || a.type === "danger").slice(0, 3).forEach(a => coachMsgs.push(`${a.sym}: ${a.msg}`));
+          if (vixP >= 25) coachMsgs.unshift("DCA extra into ETFs — VIX elevated");
+          if (vixP >= 30) coachMsgs.unshift("Deploy extra cash — market panic");
 
           setTimeout(() => {
             setTodos(prev => {
@@ -1518,7 +1578,25 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
               return updated;
             });
           }, 0);
-          return null;
+
+          // Render dashboard
+          const mag6Signals = signals.filter(s => !s.isETF);
+          const etfSignals = signals.filter(s => s.isETF);
+          return (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: C.accent, fontWeight: 700, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Daily Signals</div>
+              {[...mag6Signals, ...etfSignals].map(s => (
+                <div key={s.sym} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderBottom: `1px solid ${C.border}10`, fontSize: 13 }}>
+                  <span style={{ fontWeight: 700, color: s.actionColor, minWidth: 50 }}>{s.sym}</span>
+                  <span style={{ background: s.actionColor + "22", color: s.actionColor, padding: "1px 6px", borderRadius: 4, fontSize: 9, fontWeight: 700, minWidth: 55, textAlign: "center" }}>{s.action}</span>
+                  {s.tags.slice(0, 3).map(tag => (
+                    <span key={tag} style={{ background: C.card2, color: C.muted, padding: "0 5px", borderRadius: 4, fontSize: 9, fontWeight: 600 }}>{tag}</span>
+                  ))}
+                  <span style={{ color: C.text, flex: 1, fontSize: 12 }}>{s.reason}</span>
+                </div>
+              ))}
+            </div>
+          );
         })()}
 
         {todos.filter(t => !t.done).map(t => (
