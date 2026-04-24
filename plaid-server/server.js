@@ -406,6 +406,32 @@ function calcEMA(prices, period) {
   return ema;
 }
 
+/* Helper: calculate MACD from price array — returns { macd, signal, histogram } */
+function calcMACD(prices) {
+  if (prices.length < 35) return null;
+  const ema12arr = [], ema26arr = [];
+  let ema12 = prices.slice(0, 12).reduce((s, p) => s + p, 0) / 12;
+  let ema26 = prices.slice(0, 26).reduce((s, p) => s + p, 0) / 26;
+  const k12 = 2 / 13, k26 = 2 / 27;
+  for (let i = 0; i < prices.length; i++) {
+    if (i >= 12) ema12 = prices[i] * k12 + ema12 * (1 - k12);
+    if (i >= 26) ema26 = prices[i] * k26 + ema26 * (1 - k26);
+    if (i >= 26) { ema12arr.push(ema12); ema26arr.push(ema26); }
+  }
+  const macdLine = ema12arr.map((e12, i) => e12 - ema26arr[i]);
+  if (macdLine.length < 9) return null;
+  let signal = macdLine.slice(0, 9).reduce((s, v) => s + v, 0) / 9;
+  const k9 = 2 / 10;
+  for (let i = 9; i < macdLine.length; i++) signal = macdLine[i] * k9 + signal * (1 - k9);
+  const macd = macdLine[macdLine.length - 1];
+  const histogram = macd - signal;
+  const prevMacd = macdLine.length > 1 ? macdLine[macdLine.length - 2] : macd;
+  let prevSignal = macdLine.slice(0, 9).reduce((s, v) => s + v, 0) / 9;
+  for (let i = 9; i < macdLine.length - 1; i++) prevSignal = macdLine[i] * k9 + prevSignal * (1 - k9);
+  const crossover = prevMacd <= prevSignal && macd > signal ? "bullish" : prevMacd >= prevSignal && macd < signal ? "bearish" : null;
+  return { macd: +macd.toFixed(3), signal: +signal.toFixed(3), histogram: +histogram.toFixed(3), crossover };
+}
+
 /* Helper: calculate RSI from price array */
 function calcRSI(prices, period = 14) {
   if (prices.length < period + 1) return null;
@@ -591,6 +617,7 @@ app.get("/api/market/history", async (req, res) => {
       rollingRsi.push(calcRSI(closes.slice(0, i), 14) || 0);
     }
     const divergence = detectDivergence(closes.slice(-rollingRsi.length), rollingRsi);
+    const macd = calcMACD(closes);
 
     // Order blocks from weekly candles
     const weeklyOB = detectOrderBlocks(weeklyQuotes);
@@ -639,6 +666,7 @@ app.get("/api/market/history", async (req, res) => {
       weeklyRsi14: weeklyRsi14 ? +weeklyRsi14.toFixed(1) : null,
       weeklyRsi14Prev: weeklyRsi14Prev ? +weeklyRsi14Prev.toFixed(1) : null,
       monthlyRsi14: monthlyRsi14 ? +monthlyRsi14.toFixed(1) : null,
+      macd: macd || null,
       divergence,
       orderBlocks: weeklyOB,
       nearDemandBlock: nearDemand.length > 0 ? nearDemand[0] : null,

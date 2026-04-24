@@ -1548,34 +1548,33 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
               // Mag 6 stocks
               const af = actionFeed.find(a => a.sym === sym);
               const divNote = divergence === "bearish" ? " Bearish divergence." : divergence === "bullish" ? " Bullish divergence." : "";
-              const supplyNote = nearSupply ? " At sell zone." : "";
-              const demandNote = nearDemand ? " At order block." : "";
+              const macd = tech.macd;
+              const macdNote = macd?.crossover === "bullish" ? " MACD bullish cross." : macd?.crossover === "bearish" ? " MACD bearish cross." : "";
+              const emaNote = !above8ema && !above21ema ? " Lost 8 + 21 EMA." : !above8ema ? " Below 8 EMA." : "";
               const ema200Note = below200 ? " Below 200 EMA." : "";
 
-              if (af?.type === "sell") { action = "TRIM"; actionColor = C.red; reason = `Up ${gainPct.toFixed(0)}%, overbought.${divNote}${supplyNote}`; }
-              else if (af?.type === "buy" && af.score >= 5) { action = "BUY"; actionColor = C.green; reason = `${pctDown.toFixed(0)}% off ATH.${demandNote}${divNote}`; }
-              else if (nearSupply && gainPct > 0 && gainPct < 10) { action = "B/E"; actionColor = C.orange; reason = `At sell zone, only up ${gainPct.toFixed(1)}%. Sell and re-enter lower.`; }
+              if (af?.type === "sell") { action = "TRIM"; actionColor = C.red; reason = `Up ${gainPct.toFixed(0)}%, overbought.${divNote}${macdNote}`; }
+              else if (af?.type === "buy" && af.score >= 5) { action = "BUY"; actionColor = C.green; reason = `${pctDown.toFixed(0)}% off ATH.${divNote}${macdNote}`; }
               else if (overbought && gainPct > 0) {
-                const hv = holdingValue || 0;
                 let trimPct = 25;
                 if (rsi > 80) trimPct = 50;
                 if (divergence === "bearish") trimPct = Math.min(trimPct + 25, 75);
-                if (nearSupply) trimPct = Math.min(trimPct + 25, 75);
                 if (!above21) trimPct = Math.min(trimPct + 25, 100);
+                if (macd?.crossover === "bearish") trimPct = Math.min(trimPct + 25, 100);
                 action = "TRIM"; actionColor = C.red;
-                reason = `Up ${gainPct.toFixed(0)}%, overbought.${divNote}${supplyNote}`;
+                reason = `Up ${gainPct.toFixed(0)}%, overbought.${divNote}${macdNote}${emaNote}`;
               }
-              else if (overbought && gainPct <= 0 && (divergence === "bearish" || !above21 || nearSupply)) { action = "DO NOT ADD"; actionColor = C.orange; reason = `Overbought + underwater.${divNote}${supplyNote}`; }
+              else if (overbought && gainPct <= 0 && (divergence === "bearish" || !above21)) { action = "DO NOT ADD"; actionColor = C.orange; reason = `Overbought + underwater.${divNote}${emaNote}`; }
               else if (rsi > 80 && gainPct <= 0) { action = "OVERBOUGHT"; actionColor = C.red; reason = `Extreme RSI, underwater.${divNote}`; }
-              else if (rsi > 70 && rsiRising) { action = "EXTENDED"; actionColor = C.orange; reason = `Hot but momentum still up.${divNote}${supplyNote}`; }
-              else if (rsi > 70) { action = "EXTENDED"; actionColor = C.orange; reason = `Getting stretched.${divNote}`; }
-              else if (oversold && rsiRising) { action = "BUY"; actionColor = C.green; reason = `Reversing from oversold.${divNote}${demandNote}`; }
-              else if (pctDown >= 10 && !overbought) { action = "WATCH"; actionColor = "#8ab864"; reason = `${pctDown.toFixed(0)}% discount.${divNote}${demandNote}${ema200Note}`; }
-              else if (below200) { action = "WAIT"; actionColor = C.orange; reason = `Below 200 EMA.${divNote}`; }
-              else if (gainPct > 30 && nearSupply) { action = "TRIM"; actionColor = C.red; reason = `Up ${gainPct.toFixed(0)}%, at sell zone.${divNote}`; }
-              else if (rsi >= 60 && rsiRising && pctDown < 5) { action = "ROOM TO RUN"; actionColor = "#8ab864"; reason = `Near ATH, momentum up.${divNote}`; }
-              else if (rsi >= 50 && rsiRising) { action = "ROOM TO RUN"; actionColor = "#8ab864"; reason = `Trending up.${divNote}`; }
-              else if (rsi && rsi < 50 && !rsiRising) { action = "COOLING"; actionColor = C.muted; reason = `Momentum slowing.${divNote}`; }
+              else if (rsi > 70 && rsiRising) { action = "EXTENDED"; actionColor = C.orange; reason = `Hot but momentum still up.${divNote}${macdNote}`; }
+              else if (rsi > 70) { action = "EXTENDED"; actionColor = C.orange; reason = `Getting stretched.${divNote}${macdNote}`; }
+              else if (oversold && rsiRising) { action = "BUY"; actionColor = C.green; reason = `Reversing from oversold.${divNote}${macdNote}`; }
+              else if (pctDown >= 10 && !overbought) { action = "WATCH"; actionColor = "#8ab864"; reason = `${pctDown.toFixed(0)}% discount.${divNote}${macdNote}${ema200Note}`; }
+              else if (below200) { action = "WAIT"; actionColor = C.orange; reason = `Below 200 EMA.${divNote}${macdNote}`; }
+              else if (gainPct > 30 && overbought) { action = "TRIM"; actionColor = C.red; reason = `Up ${gainPct.toFixed(0)}%, overbought.${divNote}`; }
+              else if (rsi >= 60 && rsiRising && pctDown < 5) { action = "ROOM TO RUN"; actionColor = "#8ab864"; reason = `Near ATH, momentum up.${divNote}${macdNote}`; }
+              else if (rsi >= 50 && rsiRising) { action = "ROOM TO RUN"; actionColor = "#8ab864"; reason = `Trending up.${divNote}${macdNote}`; }
+              else if (rsi && rsi < 50 && !rsiRising) { action = "COOLING"; actionColor = C.muted; reason = `Momentum slowing.${divNote}${macdNote}`; }
               else { action = "HOLD"; actionColor = C.muted; reason = "Neutral"; }
             }
             // Multi-timeframe cycle analysis
