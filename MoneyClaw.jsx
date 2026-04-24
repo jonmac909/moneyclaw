@@ -1524,9 +1524,7 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
             if (rsi) tags.push(`D:${Math.round(rsi)}`);
             if (pctDown >= 5) tags.push(`-${pctDown.toFixed(0)}%`);
             if (pctDown < 2) tags.push("ATH");
-            if (nearDemand) tags.push("W Box ▲");
-            if (nearSupply) tags.push("W Box ▼");
-            if (below200) tags.push("↓200");
+                        if (below200) tags.push("↓200");
             if (divergence === "bullish") tags.push("Bull Div");
             if (divergence === "bearish") tags.push("Bear Div");
 
