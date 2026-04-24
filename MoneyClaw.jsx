@@ -1524,7 +1524,9 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
             if (rsi) tags.push(`D:${Math.round(rsi)}`);
             if (pctDown >= 5) tags.push(`-${pctDown.toFixed(0)}%`);
             if (pctDown < 2) tags.push("ATH");
-                        if (below200) tags.push("↓200");
+            if (nearDemand) tags.push("Buy Zone");
+            if (nearSupply) tags.push("Sell Zone");
+            if (below200) tags.push("↓200");
             if (divergence === "bullish") tags.push("Bull Div");
             if (divergence === "bearish") tags.push("Bear Div");
 
@@ -1550,6 +1552,13 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
               else if (af?.type === "buy" && af.score >= 5) { action = "BUY"; actionColor = C.green; reason = af.msg; }
               else if (nearSupply && gainPct > 0 && gainPct < 10) { action = "B/E"; actionColor = C.orange; reason = `At sell block, up ${gainPct.toFixed(1)}%`; }
               else if (overbought && gainPct > 0) {
+                const hv = holdingValue || 0;
+                let trimPct = 25;
+                if (rsi > 80) trimPct = 50;
+                if (divergence === "bearish") trimPct = Math.min(trimPct + 25, 75);
+                if (nearSupply) trimPct = Math.min(trimPct + 25, 75);
+                if (!above21) trimPct = Math.min(trimPct + 25, 100);
+                const trimAmt = hv * (trimPct / 100);
                 action = "TRIM"; actionColor = C.red;
                 reason = `Trim ${trimPct}% ($${(trimAmt/1000).toFixed(1)}k) — up ${gainPct.toFixed(0)}%${divergence === "bearish" ? ", bearish div" : ""}`;
               }
@@ -1572,54 +1581,21 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
             const mRsi = tech.monthlyRsi14 ? Math.round(tech.monthlyRsi14) : null;
             let cycle = "", confidence = "";
             if (dRsi && wRsi && mRsi) {
-              if (dRsi < 30 && wRsi < 40 && mRsi < 50) { cycle = "Bottom forming"; confidence = "90% buy"; }
-              else if (dRsi < 40 && wRsi < 50 && mRsi > 50) { cycle = "Pullback in uptrend"; confidence = "80% buy"; }
-              else if (dRsi > 50 && wRsi > 50 && mRsi > 50 && dRsi < 70) { cycle = "Mid-cycle bull"; confidence = "60% hold"; }
-              else if (dRsi > 70 && wRsi > 60 && mRsi > 50 && wRsi < 70) { cycle = "Getting extended"; confidence = "50% trim"; }
-              else if (dRsi > 70 && wRsi > 70 && mRsi > 60) { cycle = "Late cycle"; confidence = "80% trim"; }
-              else if (dRsi > 80 && wRsi > 70) { cycle = "Top forming"; confidence = "90% trim"; }
-              else if (dRsi < 50 && wRsi > 50 && mRsi > 50) { cycle = "Cooling in uptrend"; confidence = "60% hold"; }
-              else if (dRsi > 50 && wRsi < 50) { cycle = "Bounce in downtrend"; confidence = "40% caution"; }
-              else { cycle = "Mixed signals"; confidence = "50% neutral"; }
+              if (dRsi < 30 && wRsi < 40 && mRsi < 50) cycle = "All oversold — strong buy zone";
+              else if (dRsi < 40 && wRsi < 50 && mRsi > 50) cycle = "Dip in uptrend — buy the dip";
+              else if (dRsi > 50 && wRsi > 50 && mRsi > 50 && dRsi < 70) cycle = "Healthy uptrend";
+              else if (dRsi > 70 && wRsi > 60 && mRsi > 50 && wRsi < 70) cycle = "Running hot — start trimming";
+              else if (dRsi > 70 && wRsi > 70 && mRsi > 60) cycle = "Overbought across timeframes — take profits";
+              else if (dRsi > 80 && wRsi > 70) cycle = "Extreme — pullback incoming";
+              else if (dRsi < 50 && wRsi > 50 && mRsi > 50) cycle = "Short-term pullback, trend still up";
+              else if (dRsi > 50 && wRsi < 50) cycle = "Bouncing but weekly still weak — don't trust it yet";
+              else cycle = "Mixed — no clear edge";
             }
-            const cycleText = dRsi && wRsi ? `D:${dRsi} W:${wRsi}${mRsi ? ` M:${mRsi}` : ""} — ${cycle} (${confidence})` : "";
-
-            // QQQ technical risk
             const qqqRsi = technicals["QQQ"]?.rsi14;
-            const macroRisk = qqqRsi && qqqRsi > 75 ? " QQQ overbought — ease off tech." : "";
+            if (qqqRsi && qqqRsi > 75 && !isETF) reason += ". QQQ overbought — ease off tech";
+            const cycleText = dRsi && wRsi ? `D:${dRsi} W:${wRsi}${mRsi ? ` M:${mRsi}` : ""} — ${cycle}` : "";
 
-            // Natural language analysis
-            let analysis = "";
-            const dWord = dRsi > 80 ? "overbought" : dRsi > 70 ? "hot" : dRsi > 60 ? "healthy" : dRsi > 50 ? "neutral" : dRsi > 40 ? "weak" : dRsi > 30 ? "oversold" : dRsi ? "deeply oversold" : "?";
-            const wWord = wRsi > 70 ? "overbought" : wRsi > 60 ? "strong" : wRsi > 50 ? "neutral" : wRsi > 40 ? "weak" : wRsi ? "oversold" : null;
-            const mWord = mRsi > 70 ? "overbought" : mRsi > 50 ? "bullish" : mRsi ? "bearish" : null;
-
-            if (pctDown >= 20 && dRsi && dRsi < 40 && rsiRising) analysis = `${pctDown.toFixed(0)}% discount + oversold reversing. Strong entry — scale in now.`;
-            else if (pctDown >= 20 && dRsi && dRsi < 40) analysis = `${pctDown.toFixed(0)}% discount + oversold but still falling. Wait for reversal before buying.`;
-            else if (pctDown >= 20 && dRsi && dRsi < 50) analysis = `${pctDown.toFixed(0)}% discount, RSI recovering. Good dip buy if weekly supports.`;
-            else if (pctDown >= 10 && dRsi && dRsi < 50 && rsiRising) analysis = `${pctDown.toFixed(0)}% off ATH, momentum turning. Start building position.`;
-            else if (pctDown >= 10 && dRsi && dRsi < 50) analysis = `${pctDown.toFixed(0)}% off ATH but no reversal yet. Be patient.`;
-            else if (dRsi > 80 && wRsi && wRsi > 70) analysis = `Overbought on daily AND weekly. Pullback likely — lock in gains.`;
-            else if (dRsi > 80) analysis = `Daily RSI extreme. Short-term pullback coming — take profits.`;
-            else if (dRsi > 70 && wRsi && wRsi > 70) analysis = `Hot across timeframes. Rally getting long in the tooth — trim into strength.`;
-            else if (dRsi > 70 && rsiRising && gainPct > 0) analysis = `Running hot but still has gas. Consider trimming — don't get greedy.`;
-            else if (dRsi > 70 && rsiRising) analysis = `Strong momentum pushing higher. Let it run but don't chase.`;
-            else if (dRsi > 70) analysis = `Getting stretched. Momentum fading — expect a cooldown.`;
-            else if (dRsi && dRsi < 30 && wRsi && wRsi < 40) analysis = `Deeply oversold on daily + weekly. Rare setup — high conviction buy zone.`;
-            else if (dRsi && dRsi < 30) analysis = `Deeply oversold. If weekly holds, this is a gift. Watch for bounce.`;
-            else if (dRsi && dRsi < 40 && rsiRising) analysis = `Oversold and reversing. Early buyers stepping in — good risk/reward.`;
-            else if (dRsi && dRsi < 40) analysis = `Oversold but no reversal signal. Knife still falling — don't catch it.`;
-            else if (below200) analysis = `Below 200 EMA — in a downtrend. Only small positions until it reclaims.`;
-            else if (rsiRising && pctDown < 3) analysis = `Near ATH with momentum. Could break out — but don't FOMO.`;
-            else if (rsiRising && pctDown >= 5) analysis = `Recovering from ${pctDown.toFixed(0)}% dip. If RSI holds above 50, trend intact.`;
-            else if (rsiRising) analysis = `Momentum building. Healthy trend — stay the course.`;
-            else if (!rsiRising && dRsi && dRsi < 50) analysis = `Losing steam. Could dip further — wait for support before adding.`;
-            else if (!rsiRising && dRsi && dRsi >= 50) analysis = `Consolidating. No edge either way — stick to your plan.`;
-            else analysis = `No strong signal. Sit tight.`;
-
-            if (macroRisk) analysis += macroRisk;
-
-            return { sym, name, action, actionColor, reason, tags, isETF, analysis };
+            return { sym, name, action, actionColor, reason, tags, isETF, cycleText };
           });
 
           // Auto-sync to coach todos
@@ -1651,12 +1627,11 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
                 <div key={s.sym} style={{ display: "flex", alignItems: "center", gap: 0, padding: "4px 0", borderBottom: `1px solid ${C.border}10`, fontSize: 13 }}>
                   <span style={{ fontWeight: 700, color: s.actionColor, width: 52, flexShrink: 0, fontSize: 13 }}>{s.sym}</span>
                   <span style={{ width: 82, flexShrink: 0, textAlign: "center" }}><span style={{ background: s.actionColor + "22", color: s.actionColor, padding: "1px 5px", borderRadius: 4, fontSize: 9, fontWeight: 700 }}>{s.action}</span></span>
-                  {s.tags.slice(0, 3).map((tag, ti) => {
-                    const isBox = tag.includes("Box");
-                    const boxColor = tag.includes("▲") ? C.green : tag.includes("▼") ? C.red : C.muted;
-                    return <span key={ti} style={{ fontSize: 9, color: isBox ? boxColor : C.muted, background: isBox ? boxColor + "18" : C.card2, padding: "0 4px", borderRadius: 4, fontWeight: 600, whiteSpace: "nowrap", marginRight: 2 }}>{tag}</span>;
-                  })}
-                  <span style={{ color: C.text, fontSize: 11, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.analysis}</span>
+                  <span style={{ width: 42, flexShrink: 0, textAlign: "center", fontSize: 9, color: C.muted, background: s.tags[0] ? C.card2 : "transparent", padding: "0 2px", borderRadius: 4, fontWeight: 600, marginRight: 2 }}>{s.tags[0] || ""}</span>
+                  <span style={{ width: 36, flexShrink: 0, textAlign: "center", fontSize: 9, color: C.muted, background: s.tags[1] ? C.card2 : "transparent", padding: "0 2px", borderRadius: 4, fontWeight: 600, marginRight: 2 }}>{s.tags[1] || ""}</span>
+                  <span style={{ width: 30, flexShrink: 0, textAlign: "center", fontSize: 9, color: C.muted, background: s.tags[2] ? C.card2 : "transparent", padding: "0 2px", borderRadius: 4, fontWeight: 600, marginRight: 6 }}>{s.tags[2] || ""}</span>
+                  <span style={{ color: C.text, fontSize: 11, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.reason}</span>
+                  {s.cycleText && <span style={{ fontSize: 9, color: C.muted, whiteSpace: "nowrap", flexShrink: 0, marginLeft: 6 }}>{s.cycleText}</span>}
                 </div>
               ))}
             </div>
