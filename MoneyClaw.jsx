@@ -1621,21 +1621,17 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
           return (
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, color: C.accent, fontWeight: 700, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Daily Signals</div>
-              <div style={{ display: "grid", gridTemplateColumns: "55px 90px 50px 42px 42px 1fr", gap: "0", alignItems: "center" }}>
-                {[...mag6Signals, ...etfSignals].map(s => (
-                  <React.Fragment key={s.sym}>
-                    <span style={{ fontWeight: 700, color: s.actionColor, padding: "6px 0" }}>{s.sym}</span>
-                    <span style={{ justifySelf: "start" }}><span style={{ background: s.actionColor + "22", color: s.actionColor, padding: "1px 6px", borderRadius: 4, fontSize: 9, fontWeight: 700, display: "inline-block", textAlign: "center" }}>{s.action}</span></span>
-                    <span style={{ fontSize: 9, color: C.muted, background: C.card2, padding: "0 4px", borderRadius: 4, textAlign: "center", fontWeight: 600 }}>{s.tags[0] || ""}</span>
-                    <span style={{ fontSize: 9, color: C.muted, background: s.tags[1] ? C.card2 : "transparent", padding: "0 4px", borderRadius: 4, textAlign: "center", fontWeight: 600 }}>{s.tags[1] || ""}</span>
-                    <span style={{ fontSize: 9, color: C.muted, background: s.tags[2] ? C.card2 : "transparent", padding: "0 4px", borderRadius: 4, textAlign: "center", fontWeight: 600 }}>{s.tags[2] || ""}</span>
-                    <div style={{ padding: "4px 0", borderBottom: `1px solid ${C.border}10`, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
-                      <span style={{ color: C.text, fontSize: 12 }}>{s.reason}</span>
-                      {s.cycleText && <span style={{ fontSize: 9, color: C.muted, marginLeft: 8 }}>{s.cycleText}</span>}
-                    </div>
-                  </React.Fragment>
-                ))}
-              </div>
+              {[...mag6Signals, ...etfSignals].map(s => (
+                <div key={s.sym} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 0", borderBottom: `1px solid ${C.border}10`, fontSize: 13 }}>
+                  <span style={{ fontWeight: 700, color: s.actionColor, minWidth: 44, fontSize: 13 }}>{s.sym}</span>
+                  <span style={{ background: s.actionColor + "22", color: s.actionColor, padding: "1px 5px", borderRadius: 4, fontSize: 9, fontWeight: 700, whiteSpace: "nowrap" }}>{s.action}</span>
+                  {s.tags.slice(0, 3).map(tag => (
+                    <span key={tag} style={{ background: C.card2, color: C.muted, padding: "0 4px", borderRadius: 4, fontSize: 9, fontWeight: 600, whiteSpace: "nowrap" }}>{tag}</span>
+                  ))}
+                  <span style={{ color: C.text, fontSize: 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.reason}</span>
+                  {s.cycleText && <span style={{ fontSize: 9, color: C.muted, whiteSpace: "nowrap", marginLeft: "auto" }}>{s.cycleText}</span>}
+                </div>
+              ))}
             </div>
           );
         })()}
