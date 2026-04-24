@@ -1629,9 +1629,9 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
                     <span style={{ fontSize: 9, color: C.muted, background: C.card2, padding: "0 4px", borderRadius: 4, textAlign: "center", fontWeight: 600 }}>{s.tags[0] || ""}</span>
                     <span style={{ fontSize: 9, color: C.muted, background: s.tags[1] ? C.card2 : "transparent", padding: "0 4px", borderRadius: 4, textAlign: "center", fontWeight: 600 }}>{s.tags[1] || ""}</span>
                     <span style={{ fontSize: 9, color: C.muted, background: s.tags[2] ? C.card2 : "transparent", padding: "0 4px", borderRadius: 4, textAlign: "center", fontWeight: 600 }}>{s.tags[2] || ""}</span>
-                    <div style={{ padding: "6px 0", borderBottom: `1px solid ${C.border}10`, overflow: "hidden" }}>
+                    <div style={{ padding: "4px 0", borderBottom: `1px solid ${C.border}10`, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
                       <span style={{ color: C.text, fontSize: 12 }}>{s.reason}</span>
-                      {s.cycleText && <div style={{ fontSize: 10, color: C.muted, marginTop: 1 }}>{s.cycleText}</div>}
+                      {s.cycleText && <span style={{ fontSize: 9, color: C.muted, marginLeft: 8 }}>{s.cycleText}</span>}
                     </div>
                   </React.Fragment>
                 ))}
