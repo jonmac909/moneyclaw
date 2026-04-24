@@ -1528,8 +1528,6 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
             if (rsi) tags.push(`D:${Math.round(rsi)}`);
             if (wRsiVal) tags.push(`W:${wRsiVal}`);
             if (mRsiVal) tags.push(`M:${mRsiVal}`);
-            if (divergence === "bullish") tags.push("Bull Div");
-            if (divergence === "bearish") tags.push("Bear Div");
 
             if (isETF && !isIBIT) {
               if (rsi > 80) { action = "OVERBOUGHT"; actionColor = C.red; reason = "Extreme, wait for pullback"; }
@@ -1631,8 +1629,8 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
                   {s.tags.map((tag, ti) => {
                     const rsiNum = tag.match(/[DWM]:(\d+)/)?.[1];
                     const rsiVal = rsiNum ? parseInt(rsiNum) : null;
-                    const rsiColor = rsiVal && rsiVal >= 80 ? C.red : rsiVal && rsiVal >= 70 ? C.orange : rsiVal && rsiVal <= 30 ? C.green : rsiVal && rsiVal <= 40 ? "#8ab864" : C.muted;
-                    const rsiBg = rsiVal && rsiVal >= 80 ? C.red + "18" : rsiVal && rsiVal >= 70 ? C.orange + "18" : rsiVal && rsiVal <= 30 ? C.green + "18" : rsiVal && rsiVal <= 40 ? C.green + "12" : C.card2;
+                    const rsiColor = rsiVal && rsiVal >= 80 ? C.red : rsiVal && rsiVal <= 30 ? C.green : C.muted;
+                    const rsiBg = rsiVal && rsiVal >= 80 ? C.red + "18" : rsiVal && rsiVal <= 30 ? C.green + "18" : C.card2;
                     return <span key={ti} style={{ fontSize: 9, color: rsiVal ? rsiColor : C.muted, background: rsiVal ? rsiBg : C.card2, padding: "0 4px", borderRadius: 4, fontWeight: 600, whiteSpace: "nowrap", marginRight: 2, flexShrink: 0 }}>{tag}</span>;
                   })}
                   <span style={{ color: C.text, fontSize: 11, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginLeft: 4 }}>{s.reason}</span>
