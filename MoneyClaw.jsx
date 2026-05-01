@@ -3,6 +3,19 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, BarChart, Bar, Legend, CartesianGrid, Area, AreaChart
 } from "recharts";
+import {
+  AUTOMATION_WORKFLOWS,
+  CONTROL_MATRIX,
+  GD_BOOKKEEPING_EMAIL,
+  REQUIRED_BOOKKEEPING_FIELDS,
+  REVIEW_COMPANIES,
+  REVIEW_ROADMAP,
+  REVIEW_WINDOW,
+  SEED_BOOKKEEPING_RECORDS,
+  buildBookkeepingReview,
+  getAutomationCandidates,
+  validateBookkeepingRecord,
+} from "./bookkeepingAutomation.mjs";
 
 /* ═══════════════════════════════════════════════════════════
    THEME & COLOURS
@@ -8363,17 +8376,255 @@ function FinanceChatTab({ nwData, portData, cfData, settings, rates, theme, rule
 }
 
 /* ═══════════════════════════════════════════════════════════
-   BOOKKEEPING TAB (placeholder)
+   BOOKKEEPING TAB — GD automation review command center
    ═══════════════════════════════════════════════════════════ */
 function BookkeepingTab({ theme }) {
-  const C = theme === "dark" ? DARK : LIGHT;
+  const C = themes[theme]; const s = S(theme);
+  const [companyFilter, setCompanyFilter] = useState("all");
+  const [queueFilter, setQueueFilter] = useState("all");
+  const [activePanel, setActivePanel] = useState("summary");
+  const review = useMemo(() => buildBookkeepingReview(SEED_BOOKKEEPING_RECORDS), []);
+  const candidates = useMemo(() => getAutomationCandidates(SEED_BOOKKEEPING_RECORDS), []);
+  const invalidCount = useMemo(() => SEED_BOOKKEEPING_RECORDS.reduce((n, r) => n + (validateBookkeepingRecord(r).length ? 1 : 0), 0), []);
+  const visibleCandidates = candidates.filter(c =>
+    (companyFilter === "all" || c.company === companyFilter) &&
+    (queueFilter === "all" || c.control === queueFilter)
+  );
+  const companySummaries = REVIEW_COMPANIES.map(company => review.companies[company.name]);
+  const readyCount = candidates.filter(c => c.control === "auto_approved").length;
+  const ownerCount = candidates.filter(c => c.control === "owner_approved").length;
+  const accountantCount = candidates.filter(c => c.control === "accountant_approved").length;
+  const panels = [
+    ["summary", "Summary"],
+    ["schema", "Schema"],
+    ["roadmap", "Roadmap"],
+  ];
+  const controlLabels = {
+    auto_approved: "Auto-approved",
+    owner_approved: "Owner-approved",
+    accountant_approved: "Accountant-approved",
+    never_automated: "Never automated",
+  };
+  const controlColors = {
+    auto_approved: C.green,
+    owner_approved: C.orange,
+    accountant_approved: C.red,
+    never_automated: C.muted,
+  };
+  const sourceStatus = [
+    { label: "QBO audit log", state: "Needs export/API", detail: "Filter actor to GD and date range in both companies." },
+    { label: "QBO transaction reports", state: "Needs export/API", detail: "Counts must reconcile against QBO source reports." },
+    { label: "Email evidence", state: "Needs connector", detail: `Threads with ${GD_BOOKKEEPING_EMAIL}.` },
+    { label: "MoneyClaw review model", state: "Ready", detail: "Read-only audit mode and approval gates are active." },
+  ];
+
   return (
-    <div style={{ padding: 32, textAlign: "center" }}>
-      <Icon name="book" size={48} color={C.muted} style={{ marginBottom: 16 }} />
-      <h2 style={{ fontSize: 22, fontWeight: 600, color: C.text, marginBottom: 8 }}>Bookkeeping</h2>
-      <p style={{ fontSize: 14, color: C.muted, maxWidth: 400, margin: "0 auto" }}>
-        QuickBooks integration coming soon. Track invoices, expenses, and reconcile accounts in one place.
-      </p>
+    <div className="mc-bookkeeping-root" style={{ maxWidth: 1180, margin: "0 auto", display: "grid", gap: 16, overflowX: "hidden" }}>
+      <style>{`
+        @media (max-width: 900px) {
+          .mc-bookkeeping-root { max-width: 100% !important; }
+          .mc-bookkeeping-stats { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+          .mc-bookkeeping-two-col,
+          .mc-bookkeeping-workflow-grid { grid-template-columns: 1fr !important; }
+          .mc-bookkeeping-root h2 { font-size: 21px !important; }
+        }
+      `}</style>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <Icon name="book" size={24} color={C.accent} />
+            <h2 style={{ margin: 0, color: C.text, fontSize: 24, lineHeight: 1.1 }}>GD Bookkeeping Automation Review</h2>
+          </div>
+          <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.5, maxWidth: 760 }}>
+            Read-only control center for replacing routine bookkeeping across Ecomm House Inc and 1119432 BC LTD.
+            Review window: <strong style={{ color: C.text }}>{REVIEW_WINDOW.label}</strong>. No QuickBooks write-back is enabled here.
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <select style={s.select} value={companyFilter} onChange={e => setCompanyFilter(e.target.value)}>
+            <option value="all">Both companies</option>
+            {REVIEW_COMPANIES.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+          </select>
+          <select style={s.select} value={queueFilter} onChange={e => setQueueFilter(e.target.value)}>
+            <option value="all">All queues</option>
+            <option value="auto_approved">Auto-approved</option>
+            <option value="owner_approved">Owner-approved</option>
+            <option value="accountant_approved">Accountant-approved</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="mc-bookkeeping-stats" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))", gap: 10 }}>
+        <StatCard label="Audit Mode" value="Read-only" sub="QBO write-back disabled" color={C.green} C={C} />
+        <StatCard label="Companies" value="2 / 2" sub="Ecomm + 1119432 BC" color={C.accent} C={C} />
+        <StatCard label="GD Actor" value="Tracked" sub={GD_BOOKKEEPING_EMAIL} color={C.orange} C={C} />
+        <StatCard label="Auto Candidates" value={readyCount} sub="low-risk draft queue" color={C.green} C={C} />
+        <StatCard label="Owner Queue" value={ownerCount} sub="review before QBO" color={C.orange} C={C} />
+        <StatCard label="Accountant Queue" value={accountantCount} sub="tax/close controls" color={C.red} C={C} />
+      </div>
+
+      <div className="mc-bookkeeping-two-col" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
+        <div style={{ ...s.card, margin: 0 }}>
+          <h3 style={s.h3}>Evidence Intake</h3>
+          <div style={{ display: "grid", gap: 10 }}>
+            {sourceStatus.map(source => (
+              <div key={source.label} style={{ padding: 12, border: `1px solid ${C.border}`, borderRadius: 6, background: C.card2 + "55" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+                  <strong style={{ color: C.text, fontSize: 13 }}>{source.label}</strong>
+                  <span style={s.badge(source.state === "Ready" ? C.green : C.orange)}>{source.state}</span>
+                </div>
+                <div style={{ color: C.muted, fontSize: 12, lineHeight: 1.45, marginTop: 6 }}>{source.detail}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ ...s.card, margin: 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12 }}>
+            <h3 style={{ ...s.h3, margin: 0 }}>Company Work Pattern Summary</h3>
+            <span style={s.badge(invalidCount ? C.red : C.green)}>{invalidCount ? `${invalidCount} schema issues` : "schema clean"}</span>
+          </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 12 }}>
+            {companySummaries.map(company => (
+              <div key={company.company} style={{ padding: 14, borderRadius: 6, border: `1px solid ${C.border}`, background: C.card2 + "40" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 8 }}>
+                  <div>
+                    <div style={{ color: C.text, fontWeight: 700, fontSize: 15 }}>{company.company}</div>
+                    <div style={{ color: C.muted, fontSize: 11, marginTop: 3 }}>Starter rows until QBO/email exports are imported</div>
+                  </div>
+                  <Icon name="building" size={20} color={C.accent} />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 14 }}>
+                  <MiniMetric label="GD rows" value={company.gdRecords} C={C} />
+                  <MiniMetric label="QBO rows" value={company.qboRecords} C={C} />
+                  <MiniMetric label="Email rows" value={company.emailRecords} C={C} />
+                  <MiniMetric label="Ready" value={company.automationReady} C={C} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ ...s.card, margin: 0 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+          <div>
+            <h3 style={{ ...s.h3, marginBottom: 4 }}>Automation Candidates</h3>
+            <div style={{ color: C.muted, fontSize: 12 }}>Seeded from the target review model. QBO and email imports replace these starter rows with evidence-backed findings.</div>
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {panels.map(([key, label]) => (
+              <button key={key} style={{ ...s.btnSm, background: activePanel === key ? C.accent + "22" : C.card2, color: activePanel === key ? C.accent : C.text }} onClick={() => setActivePanel(key)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {activePanel === "summary" && (
+          <div className="mc-table-wrap" style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  {["Company", "Workflow", "Source", "Approval Gate", "Confidence", "Recommended Action"].map(h => <th key={h} style={s.th}>{h}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {visibleCandidates.map((candidate, i) => (
+                  <tr key={`${candidate.company}-${candidate.action_type}-${i}`} style={{ background: i % 2 ? C.card2 + "33" : "transparent" }}>
+                    <td style={s.td}>{candidate.company}</td>
+                    <td style={s.td}><strong>{candidate.action_type.replaceAll("_", " ")}</strong><div style={{ color: C.muted, fontSize: 11 }}>{candidate.account || "No account yet"}</div></td>
+                    <td style={s.td}>{candidate.source.replaceAll("_", " ")}</td>
+                    <td style={s.td}><span style={s.badge(controlColors[candidate.control])}>{controlLabels[candidate.control]}</span></td>
+                    <td style={s.td}>{candidate.confidencePct}%</td>
+                    <td style={{ ...s.td, minWidth: 260 }}>{candidate.recommended_action}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {activePanel === "schema" && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8 }}>
+            {REQUIRED_BOOKKEEPING_FIELDS.map(field => (
+              <div key={field} style={{ padding: "9px 10px", border: `1px solid ${C.border}`, borderRadius: 5, background: C.card2 + "44", color: C.text, fontSize: 12 }}>
+                <code>{field}</code>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {activePanel === "roadmap" && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 10 }}>
+            {REVIEW_ROADMAP.map(item => (
+              <div key={item.phase} style={{ border: `1px solid ${C.border}`, borderRadius: 6, padding: 13, background: item.status === "active" ? C.accent + "12" : C.card2 + "44" }}>
+                <div style={{ color: item.status === "active" ? C.accent : C.muted, fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>{item.phase} · {item.status}</div>
+                <div style={{ color: C.text, fontSize: 14, fontWeight: 700, marginTop: 6 }}>{item.title}</div>
+                <div style={{ color: C.muted, fontSize: 12, lineHeight: 1.45, marginTop: 6 }}>{item.output}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="mc-bookkeeping-workflow-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
+        <div style={{ ...s.card, margin: 0 }}>
+          <h3 style={s.h3}>Replacement Workflow Map</h3>
+          <div style={{ display: "grid", gap: 10 }}>
+            {AUTOMATION_WORKFLOWS.map(flow => (
+              <div key={flow.id} style={{ display: "grid", gridTemplateColumns: "1fr 110px", gap: 12, alignItems: "center", padding: 12, borderRadius: 6, border: `1px solid ${C.border}`, background: C.card2 + "30" }}>
+                <div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <strong style={{ color: C.text, fontSize: 14 }}>{flow.title}</strong>
+                    <span style={s.badge(controlColors[flow.gate])}>{controlLabels[flow.gate]}</span>
+                  </div>
+                  <div style={{ color: C.muted, fontSize: 12, marginTop: 5 }}>{flow.replaces}</div>
+                  <div style={{ color: C.muted, fontSize: 11, marginTop: 3 }}>Owner: {flow.owner}</div>
+                </div>
+                <ReadinessGauge value={flow.readiness} C={C} />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ ...s.card, margin: 0 }}>
+          <h3 style={s.h3}>Controls Matrix</h3>
+          <div style={{ display: "grid", gap: 10 }}>
+            {Object.entries(CONTROL_MATRIX).map(([key, items]) => (
+              <div key={key}>
+                <div style={{ color: controlColors[key], fontWeight: 700, fontSize: 12, marginBottom: 5 }}>{controlLabels[key]}</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {items.map(item => <span key={item} style={{ ...s.badge(controlColors[key]), fontWeight: 500 }}>{item}</span>)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MiniMetric({ label, value, C }) {
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 5, padding: "8px 9px" }}>
+      <div style={{ color: C.muted, fontSize: 9, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</div>
+      <div style={{ color: C.text, fontSize: 17, fontWeight: 800, marginTop: 2 }}>{value}</div>
+    </div>
+  );
+}
+
+function ReadinessGauge({ value, C }) {
+  const color = value >= 70 ? C.green : value >= 55 ? C.orange : C.red;
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", color: C.muted, fontSize: 10, marginBottom: 5 }}>
+        <span>Readiness</span><strong style={{ color }}>{value}%</strong>
+      </div>
+      <div style={{ height: 7, borderRadius: 999, background: C.border, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${value}%`, background: color }} />
+      </div>
     </div>
   );
 }
