@@ -16,15 +16,94 @@ const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const { Configuration, PlaidApi, PlaidEnvironments, Products, CountryCode } = require("plaid");
 const billing = require("./plaid-billing");
 const tiingo = require("./tiingo");
 
 const app = express();
-app.use(cors({ origin: true }));
+const PORT = process.env.PORT || 8484;
+const ALLOWED_ORIGINS = new Set([
+  `http://localhost:5173`,
+  `http://127.0.0.1:5173`,
+  ...(process.env.MONEYCLAW_ALLOWED_ORIGINS || "").split(",").map(s => s.trim()).filter(Boolean),
+]);
+const SESSION_TOKEN = process.env.MONEYCLAW_API_TOKEN || crypto.randomBytes(32).toString("base64url");
+
+app.use(cors({
+  origin(origin, cb) {
+    if (!origin || ALLOWED_ORIGINS.has(origin)) return cb(null, true);
+    return cb(null, false);
+  },
+  methods: ["GET", "POST", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "X-MoneyClaw-Token"],
+}));
 app.use(express.json({ limit: "50mb" }));
 
-const PORT = process.env.PORT || 8484;
+app.get("/api/session", (req, res) => {
+  res.json({ token: SESSION_TOKEN });
+});
+
+app.use("/api", (req, res, next) => {
+  if (req.method === "OPTIONS" || req.path === "/session") return next();
+  if (req.get("X-MoneyClaw-Token") === SESSION_TOKEN) return next();
+  res.status(401).json({ error: "MoneyClaw API token required" });
+});
+
+/* ── Encrypted local JSON persistence ── */
+const KEY_FILE = path.join(__dirname, ".moneyclaw-key");
+function loadDataKey() {
+  const envKey = process.env.MONEYCLAW_DATA_KEY;
+  if (envKey) {
+    const buf = Buffer.from(envKey, envKey.length === 64 ? "hex" : "base64");
+    if (buf.length !== 32) throw new Error("MONEYCLAW_DATA_KEY must decode to 32 bytes");
+    return buf;
+  }
+  try {
+    const raw = fs.readFileSync(KEY_FILE, "utf8").trim();
+    const buf = Buffer.from(raw, "base64");
+    if (buf.length === 32) return buf;
+  } catch (_) {}
+  const key = crypto.randomBytes(32);
+  fs.writeFileSync(KEY_FILE, key.toString("base64"), { mode: 0o600 });
+  return key;
+}
+const DATA_KEY = loadDataKey();
+function encryptJson(value) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", DATA_KEY, iv);
+  const plaintext = Buffer.from(JSON.stringify(value));
+  const encrypted = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+  return {
+    moneyclawEncrypted: 1,
+    alg: "aes-256-gcm",
+    iv: iv.toString("base64"),
+    tag: cipher.getAuthTag().toString("base64"),
+    data: encrypted.toString("base64"),
+  };
+}
+function decryptJsonEnvelope(envelope) {
+  const decipher = crypto.createDecipheriv("aes-256-gcm", DATA_KEY, Buffer.from(envelope.iv, "base64"));
+  decipher.setAuthTag(Buffer.from(envelope.tag, "base64"));
+  const decrypted = Buffer.concat([
+    decipher.update(Buffer.from(envelope.data, "base64")),
+    decipher.final(),
+  ]);
+  return JSON.parse(decrypted.toString("utf8"));
+}
+function readSecureJson(file, fallback) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+    return parsed?.moneyclawEncrypted ? decryptJsonEnvelope(parsed) : parsed;
+  } catch (_) {
+    return fallback;
+  }
+}
+function writeSecureJson(file, value) {
+  const tmp = file + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(encryptJson(value), null, 2), { mode: 0o600 });
+  fs.renameSync(tmp, file);
+}
 
 /* ── Plaid client setup ── */
 const config = new Configuration({
@@ -41,8 +120,9 @@ const plaid = new PlaidApi(config);
 /* Persist connections to disk so they survive server restarts */
 const CONN_FILE = path.join(__dirname, "connections.json");
 let connections = [];
-try { connections = JSON.parse(fs.readFileSync(CONN_FILE, "utf8")); } catch (_) {}
-const saveConnections = () => fs.writeFileSync(CONN_FILE, JSON.stringify(connections, null, 2));
+connections = readSecureJson(CONN_FILE, []);
+const saveConnections = () => writeSecureJson(CONN_FILE, connections);
+if (fs.existsSync(CONN_FILE)) saveConnections();
 
 /* ─────────────────────────────────────────────
    1. CREATE LINK TOKEN
@@ -788,11 +868,11 @@ app.post("/api/save", (req, res) => {
     /* Only save if incoming data has fewer uncategorized transactions than disk — prevents stale browser data from overwriting categorized data */
     const incomingUncat = (req.body?.cashflow?.transactions || []).filter(t => t.category === "Uncategorized").length;
     let diskUncat = 999;
-    try { diskUncat = JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"))?.cashflow?.transactions?.filter(t => t.category === "Uncategorized")?.length || 0; } catch {}
+    try { diskUncat = readSecureJson(DATA_FILE, null)?.cashflow?.transactions?.filter(t => t.category === "Uncategorized").length || 0; } catch {}
     if (incomingUncat > diskUncat) {
       return res.json({ ok: true, skipped: true, reason: `incoming has ${incomingUncat} uncat > disk ${diskUncat}` });
     }
-    fs.writeFileSync(DATA_FILE, JSON.stringify(req.body, null, 2));
+    writeSecureJson(DATA_FILE, req.body);
     res.json({ ok: true });
   } catch (err) {
     console.error("Save error:", err.message);
@@ -803,8 +883,9 @@ app.post("/api/save", (req, res) => {
 app.get("/api/load", (req, res) => {
   try {
     if (fs.existsSync(DATA_FILE)) {
-      const raw = fs.readFileSync(DATA_FILE, "utf-8");
-      res.json(JSON.parse(raw));
+      const data = readSecureJson(DATA_FILE, null);
+      if (data) writeSecureJson(DATA_FILE, data);
+      res.json(data);
     } else {
       res.json(null);
     }
@@ -860,7 +941,7 @@ async function runAlertCheck() {
   let data;
   try {
     if (!fs.existsSync(DATA_FILE)) return;
-    data = JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"));
+    data = readSecureJson(DATA_FILE, null);
   } catch { return; }
 
   const smsAlerts = data?.settings?.smsAlerts;
@@ -1153,6 +1234,9 @@ function claudeCLI(prompt, timeoutMs = 60000) {
 }
 
 app.post("/api/categorize", async (req, res) => {
+  if (process.env.MONEYCLAW_AI_CATEGORIZE_ENABLED !== "1") {
+    return res.status(403).json({ error: "AI categorization is disabled. Set MONEYCLAW_AI_CATEGORIZE_ENABLED=1 to opt in." });
+  }
   const { transactions, categories } = req.body;
   if (!transactions || !transactions.length) {
     return res.json({ suggestions: [] });

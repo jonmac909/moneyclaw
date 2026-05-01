@@ -10,6 +10,7 @@ data/chat.json
 coach-bridge.log
 plaid-server.log
 /plaid-server/connections.json
+/plaid-server/.moneyclaw-key
 # Plaid billing / Tiingo runtime state (regenerated on the fly)
 /plaid-server/plaid-billing-state.json
 /plaid-server/plaid-usage.jsonl

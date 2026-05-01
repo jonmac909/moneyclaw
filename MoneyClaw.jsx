@@ -24,6 +24,52 @@ const themes = {
   },
 };
 const PIE_COLORS = ["#e05a47","#CC6D3D","#A3B4C8","#022E51","#B74803","#71717a","#6b9fc4","#d4927a","#52525b","#1a4a6e"];
+const MONEYCLAW_API_ORIGIN = "http://localhost:8484";
+
+/* Attach the local API session token to every MoneyClaw helper-server request. */
+const nativeFetch = typeof window !== "undefined" ? window.fetch.bind(window) : null;
+let moneyclawApiToken = null;
+let moneyclawSessionPromise = null;
+const isMoneyClawApiRequest = (input) => {
+  if (typeof window === "undefined") return false;
+  const raw = typeof input === "string" ? input : input?.url;
+  if (!raw) return false;
+  try {
+    return new URL(raw, window.location.href).origin === MONEYCLAW_API_ORIGIN;
+  } catch {
+    return false;
+  }
+};
+const getMoneyClawApiToken = async () => {
+  if (moneyclawApiToken) return moneyclawApiToken;
+  if (!moneyclawSessionPromise) {
+    moneyclawSessionPromise = nativeFetch(`${MONEYCLAW_API_ORIGIN}/api/session`)
+      .then(r => {
+        if (!r.ok) throw new Error("MoneyClaw API session failed");
+        return r.json();
+      })
+      .then(data => {
+        moneyclawApiToken = data.token;
+        return moneyclawApiToken;
+      })
+      .finally(() => { moneyclawSessionPromise = null; });
+  }
+  return moneyclawSessionPromise;
+};
+if (typeof window !== "undefined" && nativeFetch && !window.__moneyclawFetchWrapped) {
+  window.__moneyclawFetchWrapped = true;
+  window.fetch = async (input, init = {}) => {
+    if (!isMoneyClawApiRequest(input)) return nativeFetch(input, init);
+    const url = typeof input === "string" ? input : input.url;
+    if (new URL(url, window.location.href).pathname === "/api/session") {
+      return nativeFetch(input, init);
+    }
+    const token = await getMoneyClawApiToken();
+    const headers = new Headers(init.headers || (typeof input !== "string" ? input.headers : undefined));
+    headers.set("X-MoneyClaw-Token", token);
+    return nativeFetch(input, { ...init, headers });
+  };
+}
 
 /* ═══════════════════════════════════════════════════════════
    HELPERS
@@ -63,6 +109,19 @@ function parseCSV(text) {
     const obj = {};
     headers.forEach((h, i) => { obj[h] = vals[i] || ""; });
     return obj;
+  });
+}
+
+function renderInlineMarkup(text) {
+  const parts = String(text || "").split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith("`") && part.endsWith("`")) {
+      return <code key={i}>{part.slice(1, -1)}</code>;
+    }
+    return part;
   });
 }
 
@@ -1251,7 +1310,7 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
 
                 return (
                   <div style={{ fontSize: 13, color: C.text, lineHeight: 1.6, marginTop: 6 }}>
-                    <span dangerouslySetInnerHTML={{ __html: lines.join(" ").replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') }} />
+                    <span>{renderInlineMarkup(lines.join(" "))}</span>
                     {dcaTodos}
                   </div>
                 );
@@ -1519,7 +1578,7 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
             const oversold = rsi && rsi < 40;
             const below200 = tech.ema200 && q.price < tech.ema200;
             const above8ema = tech.ema8 && q.price > tech.ema8;
-            const above21 = tech.ema21 && q.price > tech.ema21;
+            const above21ema = tech.ema21 && q.price > tech.ema21;
             const nearDemand = tech.nearDemandBlock;
             const nearSupply = tech.nearSupplyBlock;
             const divergence = tech.divergence;
@@ -1570,12 +1629,12 @@ function OverviewTab({ portData, setPortData, watchlistData, nwData, rates, todo
                 let trimPct = 25;
                 if (rsi > 80) trimPct = 50;
                 if (divergence === "bearish") trimPct = Math.min(trimPct + 25, 75);
-                if (!above21) trimPct = Math.min(trimPct + 25, 100);
+                if (!above21ema) trimPct = Math.min(trimPct + 25, 100);
                 if (macd?.crossover === "bearish") trimPct = Math.min(trimPct + 25, 100);
                 action = "TRIM"; actionColor = C.red;
                 reason = `Up ${gainPct.toFixed(0)}%, overbought.${divNote}${macdNote}${emaNote}`;
               }
-              else if (overbought && gainPct <= 0 && (divergence === "bearish" || !above21)) { action = "DO NOT ADD"; actionColor = C.orange; reason = `Overbought + underwater.${divNote}${emaNote}`; }
+              else if (overbought && gainPct <= 0 && (divergence === "bearish" || !above21ema)) { action = "DO NOT ADD"; actionColor = C.orange; reason = `Overbought + underwater.${divNote}${emaNote}`; }
               else if (rsi > 80 && gainPct <= 0) { action = "OVERBOUGHT"; actionColor = C.red; reason = `Extreme RSI, underwater.${divNote}`; }
               else if (rsi > 70 && rsiRising) { action = "EXTENDED"; actionColor = C.orange; reason = `Hot but momentum still up.${divNote}${macdNote}`; }
               else if (rsi > 70) { action = "EXTENDED"; actionColor = C.orange; reason = `Getting stretched.${divNote}${macdNote}`; }
@@ -2061,7 +2120,7 @@ function NetWorthTab({ data, setData, settings, rates, theme, hide }) {
     setData({ ...data, snapshots: updated });
   };
 
-  /* ── Excel / CSV import for net worth ── */
+  /* ── CSV import for net worth ── */
   /* Known account names mapped to bucket, currency, liability status */
   const KNOWN_ACCOUNTS = {
     /* Opco */
@@ -2152,82 +2211,8 @@ function NetWorthTab({ data, setData, settings, rates, theme, hide }) {
     setData({ ...data, snapshots: updated });
   };
 
-  const importFromExcelBinary = async (buffer, monthKey) => {
-    /* Use SheetJS to parse xlsx */
-    try {
-      const XLSX = await import("xlsx");
-      const wb = XLSX.read(new Uint8Array(buffer), { type: "array" });
-      const items = [];
-
-      wb.SheetNames.forEach(sheetName => {
-        const ws = wb.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
-
-        /* Walk through rows looking for account name + value pairs */
-        let currentSection = null;
-        jsonData.forEach(row => {
-          if (!row || row.length === 0) return;
-
-          /* Detect section headers */
-          const firstCell = String(row[0] || "").trim().toLowerCase();
-          if (firstCell.includes("corporate") || firstCell.includes("rbc ecomm")) currentSection = "Opco";
-          else if (firstCell.includes("hold co") || firstCell.includes("holdco")) currentSection = "Holdco";
-          else if (firstCell.includes("crypto") || firstCell.includes("gold") || firstCell.includes("silver")) currentSection = "Holdco";
-          else if (firstCell === "jon" || firstCell.includes("jon") && firstCell.includes("personal")) currentSection = "Jon";
-          else if (firstCell.includes("jacqueline") && firstCell.includes("td")) currentSection = "Jacqueline";
-          else if (firstCell.includes("jacqueline") && firstCell.includes("rbc")) currentSection = "Jacqueline";
-          else if (firstCell.includes("jacqueline") && firstCell.includes("other")) currentSection = "Jacqueline";
-          else if (firstCell.includes("real estate")) currentSection = "RealEstate";
-
-          /* Look for name + value in the row */
-          const name = String(row[0] || "").trim();
-          if (!name || name.toLowerCase() === "total" || name.toLowerCase().includes("total")) return;
-
-          /* Find a numeric value in the row */
-          let value = null;
-          for (let i = 1; i < row.length; i++) {
-            const v = parseFloat(String(row[i] || "").replace(/[$,]/g, ""));
-            if (!isNaN(v) && v !== 0) { value = v; break; }
-          }
-          if (value === null) return;
-
-          const match = matchAccount(name);
-          const bucket = match?.bucket || currentSection || "Opco";
-          if (bucket === "RealEstate") {
-            /* Split real estate 50/50 between Jon and Jacqueline */
-            if (name.toLowerCase().includes("mortgage")) {
-              items.push({ id: uid(), name: "Mortgage (50%)", bucket: "Jon", currency: "CAD", isLiability: true, value: Math.abs(value) / 2 });
-              items.push({ id: uid(), name: "Mortgage (50%)", bucket: "Jacqueline", currency: "CAD", isLiability: true, value: Math.abs(value) / 2 });
-            } else if (name.toLowerCase().includes("house")) {
-              items.push({ id: uid(), name: "House (50%)", bucket: "Jon", currency: "CAD", isLiability: false, value: Math.abs(value) / 2 });
-              items.push({ id: uid(), name: "House (50%)", bucket: "Jacqueline", currency: "CAD", isLiability: false, value: Math.abs(value) / 2 });
-            }
-            return;
-          }
-
-          items.push({
-            id: uid(), name,
-            bucket: bucket === "RealEstate" ? "Jon" : bucket,
-            currency: match?.currency || "CAD",
-            isLiability: match?.isLiability || false,
-            value: Math.abs(value),
-          });
-        });
-      });
-
-      if (items.length > 0) {
-        const updated = snaps.map(sn => sn.month === monthKey ? { ...sn, items } : sn);
-        setData({ ...data, snapshots: updated });
-      }
-    } catch (err) {
-      console.error("Excel parse error:", err);
-      /* Fallback: try reading as CSV */
-      try {
-        const text = new TextDecoder().decode(new Uint8Array(buffer));
-        const rows = parseCSV(text);
-        importFromParsedData(rows, monthKey);
-      } catch (e2) { console.error("Fallback CSV parse also failed:", e2); }
-    }
+  const importFromCSVText = (text, monthKey) => {
+    importFromParsedData(parseCSV(text), monthKey);
   };
 
   const saveJournal = (text) => {
@@ -2420,16 +2405,15 @@ function NetWorthTab({ data, setData, settings, rates, theme, hide }) {
           <span style={{ color: C.text, flex: 1 }}>Unsaved — update values below then save.</span>
           <label style={{ ...s.btnSm, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 8px", fontSize: 11 }}>
             Upload
-            <input type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={e => {
+            <input type="file" accept=".csv" style={{ display: "none" }} onChange={e => {
               const f = e.target.files[0]; if (!f) return;
               const r = new FileReader();
               r.onload = (ev) => {
                 try {
-                  if (f.name.endsWith(".csv")) { importFromParsedData(parseCSV(ev.target.result), activeMonth); }
-                  else { importFromExcelBinary(ev.target.result, activeMonth); }
+                  importFromCSVText(ev.target.result, activeMonth);
                 } catch (err) { console.error("Import error:", err); }
               };
-              if (f.name.endsWith(".csv")) r.readAsText(f); else r.readAsArrayBuffer(f);
+              r.readAsText(f);
             }} />
           </label>
           <button style={{ ...s.btn, padding: "4px 14px", fontSize: 13 }} onClick={saveMonth}>Save</button>
@@ -2441,17 +2425,16 @@ function NetWorthTab({ data, setData, settings, rates, theme, hide }) {
       {activeSnap && isSaved && (
         <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
           <label style={{ ...s.btnSm, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
-            Upload Excel to update
-            <input type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={e => {
+            Upload CSV to update
+            <input type="file" accept=".csv" style={{ display: "none" }} onChange={e => {
               const f = e.target.files[0]; if (!f) return;
               const r = new FileReader();
               r.onload = (ev) => {
                 try {
-                  if (f.name.endsWith(".csv")) { importFromParsedData(parseCSV(ev.target.result), activeMonth); }
-                  else { importFromExcelBinary(ev.target.result, activeMonth); }
+                  importFromCSVText(ev.target.result, activeMonth);
                 } catch (err) { console.error("Import error:", err); }
               };
-              if (f.name.endsWith(".csv")) r.readAsText(f); else r.readAsArrayBuffer(f);
+              r.readAsText(f);
             }} />
           </label>
           <span style={{ fontSize: 13, color: C.green }}>Saved</span>
@@ -6753,8 +6736,8 @@ function SettingsTab({ settings, setSettings, rates, setRates, theme, s: ss, tab
 
       {tabPasswords && (
         <div style={s.card}>
-          <h3 style={s.h3}>Tab Passwords</h3>
-          <div style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>Set or remove passwords for protected tabs.</div>
+          <h3 style={s.h3}>Tab Privacy Gates</h3>
+          <div style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>Visual privacy only for this browser session. Local API access is protected separately by the helper server.</div>
           {["networth", "portfolio"].map(t => {
             const label = t === "networth" ? "Net Worth" : "Portfolio";
             const hasPassword = !!tabPasswords[t];
@@ -6770,9 +6753,9 @@ function SettingsTab({ settings, setSettings, rates, setRates, theme, s: ss, tab
                       onClick={() => handleRemovePassword(t)}>Remove</button>
                   )}
                   <button style={s.btnSm} onClick={() => {
-                    const pw = prompt(hasPassword ? `New password for ${label}:` : `Set password for ${label}:`);
+                    const pw = prompt(hasPassword ? `New privacy code for ${label}:` : `Set privacy code for ${label}:`);
                     if (pw && pw.length > 0) saveTabPasswords({ ...tabPasswords, [t]: pw });
-                  }}>{hasPassword ? "Change" : "Set Password"}</button>
+                  }}>{hasPassword ? "Change" : "Set Code"}</button>
                 </div>
               </div>
             );
@@ -7537,8 +7520,9 @@ function WatchlistTab({ data, setData, portData, settings, rates, theme }) {
             {/* Multi-line take */}
             <div style={{ color: C.text, fontSize: 13, lineHeight: 1.6 }}>
               {watchTake.lines.map((line, i) => (
-                <div key={i} style={{ marginBottom: i < watchTake.lines.length - 1 ? 4 : 0 }}
-                  dangerouslySetInnerHTML={{ __html: line.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>') }} />
+                <div key={i} style={{ marginBottom: i < watchTake.lines.length - 1 ? 4 : 0 }}>
+                  {renderInlineMarkup(line)}
+                </div>
               ))}
             </div>
             {actionFeed.filter(a => a.type === "buy" || a.type === "sell" || a.type === "caution" || a.type === "danger").length > 0 && (
@@ -8265,12 +8249,9 @@ function FinanceChatTab({ nwData, portData, cfData, settings, rates, theme, rule
     return text.split("\n").map((line, i) => {
       // Detect actionable rule-like lines (quoted rules)
       const ruleMatch = line.match(/^[•\-]\s*"(.+?)"$/);
-      const rendered = line
-        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-        .replace(/`(.+?)`/g, '<code>$1</code>');
       return (
         <div key={i} style={{ minHeight: line === "" ? 8 : "auto", display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ flex: 1 }} dangerouslySetInnerHTML={{ __html: rendered }} />
+          <span style={{ flex: 1 }}>{renderInlineMarkup(line)}</span>
           {ruleMatch && (
             <button onClick={() => coachAddTodo(ruleMatch[1])} title="Add to To-Do"
               style={{ background: C.accent + "22", color: C.accent, border: "none", borderRadius: 4, padding: "1px 6px", fontSize: 9, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
@@ -8500,7 +8481,7 @@ export default function MoneyClaw() {
   const [lastAutoSave, setLastAutoSave] = useState(null);
 
 
-  /* Auto-save to window.name + localStorage + server file every 1.5 seconds */
+  /* Auto-save to encrypted local server storage every 1.5 seconds */
   const lastServerSave = useRef(0);
   const serverCfRef = useRef(null);
   const saveData = useCallback(() => {
@@ -8513,8 +8494,6 @@ export default function MoneyClaw() {
     try {
       const obj = { _mc: true, nw: nwData, portfolio: portData, cashflow: cfData, settings, rates, watchlist: watchlistData, todos, rules };
       const data = JSON.stringify(obj);
-      window.name = data;
-      try { localStorage.setItem("moneyclaw", data); } catch {}
       // Save to server every debounced batch (1.5s) so edits like bank nickname changes persist
       // across reloads instead of being lost inside a 10s throttle window.
       lastServerSave.current = Date.now();
@@ -8537,7 +8516,12 @@ export default function MoneyClaw() {
       // Force server save on unload regardless of throttle
       try {
         const obj = { _mc: true, nw: nwData, portfolio: portData, cashflow: cfData, settings, rates, watchlist: watchlistData, todos, rules };
-        navigator.sendBeacon("http://localhost:8484/api/save", new Blob([JSON.stringify(obj)], { type: "application/json" }));
+        fetch("http://localhost:8484/api/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(obj),
+          keepalive: true,
+        }).catch(() => {});
       } catch {}
     };
     window.addEventListener("beforeunload", handleUnload);
@@ -8740,11 +8724,11 @@ export default function MoneyClaw() {
             <div style={{ marginBottom: 8 }}><Icon name="lock" size={48} color={C.muted} /></div>
             <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>This tab is locked</div>
             <div style={{ fontSize: 13, color: C.muted, textAlign: "center", maxWidth: 320 }}>
-              Enter your password to access this tab.
+              Enter your privacy code to access this tab.
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
               <input
-                type="password" autoFocus placeholder="Password"
+                type="password" autoFocus placeholder="Privacy code"
                 value={pwInput} onChange={e => { setPwInput(e.target.value); setPwError(""); }}
                 onKeyDown={e => { if (e.key === "Enter") handleUnlock(tab); }}
                 style={{

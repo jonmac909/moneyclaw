@@ -53,8 +53,10 @@ function callClaude(userText, history) {
       "-p", prompt,
       "--append-system-prompt", systemPrompt,
       "--add-dir", WORKDIR,
-      "--permission-mode", "bypassPermissions",
     ];
+    if (process.env.MONEYCLAW_COACH_BYPASS_PERMISSIONS === "1") {
+      args.push("--permission-mode", "bypassPermissions");
+    }
     log("invoking claude CLI (prompt chars:", prompt.length + ")");
     const child = spawn("claude", args, { cwd: WORKDIR, stdio: ["ignore", "pipe", "pipe"] });
     let out = "", err = "";
